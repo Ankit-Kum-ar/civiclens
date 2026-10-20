@@ -1,68 +1,127 @@
-import Image from "next/image";
+"use client";
+
+import React, { useState, useEffect } from "react";
+import { Moon, Sun, ShieldCheck, Sparkles, Send } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
+import { siteConfig } from "@/config/site";
 
 export default function Home() {
+  const [isDark, setIsDark] = useState(true);
+  const [reportTitle, setReportTitle] = useState("");
+
+  useEffect(() => {
+    // Sync theme class on html element
+    const root = document.documentElement;
+    if (isDark) {
+      root.classList.add("dark");
+    } else {
+      root.classList.remove("dark");
+    }
+  }, [isDark]);
+
+  const toggleTheme = () => {
+    setIsDark((prev) => !prev);
+    toast.info(`Switched to ${!isDark ? "Dark" : "Light"} mode`);
+  };
+
+  const handleTestSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reportTitle.trim()) {
+      toast.warning("Please type a sample hazard description");
+      return;
+    }
+    toast.success("Sample Report Created!", {
+      description: `"${reportTitle}" submitted with automatic privacy redaction.`,
+    });
+    setReportTitle("");
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx - need to study
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-4 sm:p-6 transition-colors duration-200">
+      <main className="w-full max-w-md space-y-6">
+        {/* Top bar with Theme Toggle */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-xl tracking-tight">{siteConfig.name}</span>
+            <Badge variant="outline" className="text-xs">
+              Preview
+            </Badge>
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={toggleTheme}
+            className="flex items-center gap-2 cursor-pointer"
           >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            {isDark ? <Sun className="size-4 text-amber-400" /> : <Moon className="size-4 text-indigo-500" />}
+            <span className="text-xs font-medium">{isDark ? "Light Mode" : "Dark Mode"}</span>
+          </Button>
         </div>
+
+        {/* Showcase Card */}
+        <Card className="shadow-lg border-border bg-card">
+          <CardHeader>
+            <div className="flex items-center gap-2 mb-1">
+              <Badge className="bg-primary text-primary-foreground text-xs">
+                <Sparkles className="size-3 mr-1" /> AI Triaged
+              </Badge>
+              <Badge variant="secondary" className="text-xs">
+                <ShieldCheck className="size-3 mr-1" /> DPDP Compliant
+              </Badge>
+            </div>
+            <CardTitle className="text-lg font-semibold">{siteConfig.tagline}</CardTitle>
+            <CardDescription className="text-xs text-muted-foreground">
+              Test your newly applied shadcn preset theme in both light and dark mode.
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent>
+            <form onSubmit={handleTestSubmit} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-foreground">
+                  Quick Incident Sample
+                </label>
+                <Input
+                  value={reportTitle}
+                  onChange={(e) => setReportTitle(e.target.value)}
+                  placeholder="e.g. Open manhole on 5th avenue..."
+                  className="text-sm"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <Button type="submit" className="flex-1 text-xs">
+                  <Send className="size-3.5 mr-1.5" /> Submit Report
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="text-xs"
+                  onClick={() => toast.success("Toast Notification Works!")}
+                >
+                  Test Toast
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+
+          <CardFooter className="border-t border-border pt-3 text-[11px] text-muted-foreground flex justify-between">
+            <span>Preset: base-maia</span>
+            <span>Next.js 16 + Tailwind v4</span>
+          </CardFooter>
+        </Card>
       </main>
     </div>
   );
