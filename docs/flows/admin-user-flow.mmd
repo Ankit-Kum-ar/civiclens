@@ -1,0 +1,60 @@
+sequenceDiagram
+    autonumber
+    actor Admin as Municipal Engineer (Admin)
+    participant Desktop as Next.js Desktop Dashboard
+    participant Middleware as Next.js Route Guard (middleware.ts)
+    participant NextServer as Next.js Server Actions
+    participant MongoDB as MongoDB Atlas
+    participant Cloudinary as Cloudinary Edge Engine
+
+    %% Admin Authentication & Authorization
+    rect rgb(69, 10, 10)
+        note over Admin, Middleware: Phase 1: Admin Route Protection
+        Admin->>Desktop: Navigates to /admin/dashboard
+        Desktop->>Middleware: Checks session token
+        alt Role is CITIZEN or Unauthenticated
+            Middleware-->>Desktop: 403 Forbidden / Redirect to login
+        else Role is ADMIN
+            Middleware-->>Desktop: Allows access to route
+        end
+    end
+
+    %% High-Speed Triage
+    rect rgb(67, 20, 7)
+        note over Desktop, Cloudinary: Phase 2: Instant Triage via 3-Second Previews
+        Desktop->>NextServer: Fetch open grievances (status: "OPEN", sort: severity)
+        NextServer->>MongoDB: Grievance.find({ status: "OPEN" }).sort({ severity: -1 })
+        MongoDB-->>NextServer: Returns ticket list + Cloudinary publicIds
+        NextServer-->>Desktop: Renders triage card grid
+        
+        Admin->>Desktop: Hovers cursor over a ticket card
+        note over Desktop, Cloudinary: No 30MB video is downloaded!
+        Desktop->>Cloudinary: GET .../video/upload/so_0,du_3,e_preview/hz_102.mp4
+        Cloudinary-->>Desktop: Streams 3-second animated mini-clip directly from CDN
+        Admin->>Desktop: Reviews auto-tags (#OpenManhole, #Urgent) & spoken transcript
+    end
+
+    %% Dispatch & Work Order
+    rect rgb(20, 83, 45)
+        note over Admin, MongoDB: Phase 3: Work Order & Crew Dispatch
+        Admin->>Desktop: Selects status: "IN_PROGRESS" & clicks "Dispatch Crew"
+        Desktop->>NextServer: Server Action: updateTicketStatus(ticketId, "IN_PROGRESS")
+        NextServer->>MongoDB: Grievance.findByIdAndUpdate(ticketId, { status: "IN_PROGRESS" })
+        MongoDB-->>NextServer: Confirms update
+        Desktop->>Admin: Generates privacy-safe field link/PDF for maintenance truck
+    end
+
+    %% Resolution & Public Verification
+    rect rgb(30, 27, 75)
+        note over Admin, Cloudinary: Phase 4: Resolution & Before/After Proof
+        Admin->>Desktop: Repair complete -> Uploads "Fixed" photo
+        Desktop->>Cloudinary: Signed upload: resolution_photo.jpg
+        Cloudinary-->>Desktop: Returns resolvedPublicId
+        
+        Desktop->>NextServer: Server Action: resolveGrievance(ticketId, resolvedPublicId)
+        NextServer->>MongoDB: Grievance.findByIdAndUpdate(ticketId, { status: "RESOLVED", resolvedMediaPublicId })
+        MongoDB-->>NextServer: Saved
+        NextServer-->>Desktop: Ticket marked "RESOLVED"
+        
+        note over Desktop, Cloudinary: Public Map (/explore) immediately reflects:<br/>1. Pin turns GREEN<br/>2. Before/After slider activates for community verification
+    end
