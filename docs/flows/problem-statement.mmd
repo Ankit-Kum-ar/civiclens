@@ -1,0 +1,30 @@
+flowchart TD
+    %% Custom Dark Theme Node Styling
+    classDef redNode fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fecaca;
+    classDef amberNode fill:#451a03,stroke:#f59e0b,stroke-width:2px,color:#fef3c7;
+    classDef blueNode fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#e0f2fe;
+    classDef failureNode fill:#2d0607,stroke:#dc2626,stroke-width:3px,color:#fee2e2;
+
+    subgraph Phase1 ["1. Citizen Capture Dilemma"]
+        A[Resident discovers critical hazard<br/>Open Manhole / Dangling Wire]:::blueNode
+        A --> B[Records raw 10-30s phone video<br/>& speaks voice explanation]:::blueNode
+    end
+
+    subgraph Phase2 ["2. The Privacy & Legal Paradox"]
+        B --> C[Uncontrolled Media Capture<br/>Pedestrian & school children faces<br/>Vehicle license plates visible]:::amberNode
+        C --> D{Municipal Public Feed}:::amberNode
+        D -->|Legal Liability Exposure| E[Violates Privacy Regulations<br/>India DPDP Act / EU GDPR]:::redNode
+        E --> F[Portal Solution: Lock media behind walls<br/>Zero Public Accountability]:::redNode
+    end
+
+    subgraph Phase3 ["3. Server & Triage Bottleneck"]
+        B --> G[Uncompressed Multi-Megabyte Files<br/>30MB-50MB upload per citizen]:::amberNode
+        G --> H[Server Bandwidth Saturation<br/>& Edge Memory Timeouts]:::redNode
+        H --> I[Triage Paralysis for Ward Engineers<br/>Must download & watch each long video]:::redNode
+        I --> J[Critical life hazards buried<br/>under trivial cosmetic complaints]:::redNode
+    end
+
+    subgraph Phase4 ["4. Ultimate System Failure"]
+        F --> K[The Broken Outcome<br/>• >50% complaints rejected or ignored<br/>• Hazards remain unresolved for months<br/>• Citizens lose faith and stop reporting]:::failureNode
+        J --> K
+    end

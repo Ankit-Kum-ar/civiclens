@@ -1,0 +1,33 @@
+flowchart TD
+    %% Custom Dark Theme Node Styling
+    classDef emeraldNode fill:#064e3b,stroke:#10b981,stroke-width:2px,color:#d1fae5;
+    classDef indigoNode fill:#1e1b4b,stroke:#6366f1,stroke-width:2px,color:#e0e7ff;
+    classDef cyanNode fill:#083344,stroke:#06b6d4,stroke-width:2px,color:#cffafe;
+    classDef successNode fill:#022c22,stroke:#059669,stroke-width:3px,color:#ecfdf5;
+
+    subgraph Ingestion ["1. Next.js PWA Client Ingestion"]
+        S1[Citizen opens mobile web app<br/>Zero App Store download friction]:::cyanNode
+        S1 --> S2[1-Tap Google Sign-In<br/>Auth.js / NextAuth Session]:::cyanNode
+        S2 --> S3[Captures 10s video + spoken note<br/>HTML5 media + Web Geolocation API]:::cyanNode
+        S3 --> S4[Direct Signed Upload<br/>Bypasses Next.js server to prevent memory crashes]:::cyanNode
+    end
+
+    subgraph EdgeEngine ["2. Cloudinary Computational Edge Engine"]
+        S4 --> T1[raw_convert: google_speech<br/>Transcribes speech to structured text]:::indigoNode
+        S4 --> T2[e_pixelate_faces<br/>Detects & blurs bystander faces & plates]:::indigoNode
+        S4 --> T3[e_preview:duration_3,so_0<br/>Compiles 3s looping triage mini-clip]:::indigoNode
+        S4 --> T4[l_text Dynamic Overlay<br/>Burns cryptographic GPS & time stamp]:::indigoNode
+        S4 --> T5[f_auto, q_auto<br/>Compresses asset by 70% to AVIF/WebP]:::indigoNode
+    end
+
+    subgraph Storage ["3. Decoupled Persistence Layer"]
+        T1 & T2 & T3 & T4 & T5 --> D1[Return public_id & transcript to client]:::cyanNode
+        D1 --> D2[Next.js Server Action: createGrievance]:::cyanNode
+        D2 --> D3[(MongoDB Atlas<br/>Stores metadata, GeoJSON 2dsphere,<br/>status lifecycles & tags)]:::emeraldNode
+    end
+
+    subgraph Presentation ["4. Multi-Role UI Delivery"]
+        D3 --> U1[Public Map & Transparency Feed<br/>• 100% Privacy Compliant blurred view<br/>• Upvote: I am Affected counter]:::emeraldNode
+        D3 --> U2[Municipal Engineer Triage Board<br/>• Hover-to-preview 3s mini clips<br/>• Auto-parsed urgency tags #OpenManhole]:::emeraldNode
+        U2 --> U3[1-Click Crew Dispatch & Before/After Proof]:::successNode
+    end

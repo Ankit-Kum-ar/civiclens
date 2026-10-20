@@ -1,0 +1,71 @@
+flowchart TD
+    %% Global Styling Classes for Dark Theme Contrast
+    classDef clientLayer fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#e0f2fe;
+    classDef authLayer fill:#311042,stroke:#c084fc,stroke-width:2px,color:#f3e8ff;
+    classDef nextLayer fill:#022c22,stroke:#10b981,stroke-width:2px,color:#d1fae5;
+    classDef cloudLayer fill:#1e1b4b,stroke:#818cf8,stroke-width:2px,color:#e0e7ff;
+    classDef dbLayer fill:#14532d,stroke:#4ade80,stroke-width:2px,color:#dcfce7;
+    classDef mapLayer fill:#451a03,stroke:#fb923c,stroke-width:2px,color:#ffedd5;
+
+    %% 1. CLIENT & VIEWPORT LAYER
+    subgraph ClientStack ["1. Frontend Presentation & UI Layer"]
+        NextClient["Next.js 15 PWA\n(Mobile & Desktop Viewports)"]:::clientLayer
+        Tailwind["Tailwind CSS + shadcn/ui\n(UI Components & Accessible Primitives)"]:::clientLayer
+        Framer["Framer Motion\n(Animations, Waveforms & Progress)"]:::clientLayer
+        Lucide["Lucide React\n(Iconography)"]:::clientLayer
+        WebAPIs["HTML5 Media Capture & Web Geolocation\n(Native Camera, Mic & GPS)"]:::clientLayer
+    end
+
+    %% 2. IDENTITY & ACCESS CONTROL
+    subgraph AuthStack ["2. Identity & Authentication Layer"]
+        NextAuth["Auth.js / NextAuth v5\n(Session Cookies & JWT)"]:::authLayer
+        GoogleOAuth["Google Cloud Identity\n(1-Tap OAuth 2.0 Sign-in)"]:::authLayer
+        Middleware["Next.js Edge Middleware\n(Role Protection: CITIZEN vs ADMIN)"]:::authLayer
+    end
+
+    %% 3. APPLICATION & SERVER RUNTIME
+    subgraph ServerStack ["3. Backend Runtime & API Layer (Next.js 15)"]
+        ServerActions["Server Actions\n(createGrievance, toggleUpvote, updateTicket)"]:::nextLayer
+        RouteHandlers["API Route Handlers\n(POST /api/cloudinary/sign)"]:::nextLayer
+        NextCloudinarySDK["next-cloudinary + Node SDK v2\n(Signed Upload Tokens & Transforms)"]:::nextLayer
+        MongooseODM["Mongoose ODM\n(Schema Validation & Strict Typing)"]:::nextLayer
+    end
+
+    %% 4. EDGE MEDIA & COMPUTER VISION
+    subgraph CloudinaryStack ["4. Computational Media Engine (Cloudinary Edge)"]
+        DirectUpload["Direct Signed Ingestion\n(Bypasses Node Server Memory)"]:::cloudLayer
+        SpeechAI["raw_convert: google_speech\n(Voice Note to Text Parsing)"]:::cloudLayer
+        PrivacyAI["e_pixelate_faces\n(Automated Face & Plate Blurring)"]:::cloudLayer
+        TriageVideo["so_0,du_3,e_preview\n(3-Second Hover Mini-Clips)"]:::cloudLayer
+        WatermarkEngine["l_text Dynamic Overlays\n(Cryptographic GPS & Timestamp Watermark)"]:::cloudLayer
+        CDNOptimize["f_auto, q_auto\n(AVIF/WebP Compression & CDN Delivery)"]:::cloudLayer
+    end
+
+    %% 5. PERSISTENCE LAYER
+    subgraph DataStack ["5. Data Persistence & Spatial Layer"]
+        MongoAtlas[("MongoDB Atlas M0\n• Users Collection\n• Grievances Collection\n• 2dsphere Spatial Index [lng, lat]")]:::dbLayer
+        LeafletMap["Leaflet.js / React-Leaflet + OpenStreetMap\n(Interactive Neighborhood Risk Heatmap)"]:::mapLayer
+    end
+
+    %% Connections Between Layers
+    WebAPIs --> NextClient
+    Tailwind & Framer & Lucide --> NextClient
+    
+    NextClient <--> NextAuth
+    NextAuth <--> GoogleOAuth
+    NextAuth --> Middleware
+    Middleware --> ServerActions
+
+    NextClient --> RouteHandlers
+    RouteHandlers --> NextCloudinarySDK
+    NextClient -->|Direct Stream Upload| DirectUpload
+
+    DirectUpload --> SpeechAI & PrivacyAI & TriageVideo & WatermarkEngine & CDNOptimize
+
+    NextClient --> ServerActions
+    ServerActions --> MongooseODM
+    MongooseODM <--> MongoAtlas
+
+    MongoAtlas <--> LeafletMap
+    LeafletMap --> NextClient
+    CDNOptimize --> NextClient

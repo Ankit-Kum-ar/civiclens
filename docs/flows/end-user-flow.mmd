@@ -1,0 +1,63 @@
+sequenceDiagram
+    autonumber
+    actor Citizen as Rahul (Citizen / Reporter)
+    participant PWA as Next.js PWA (Mobile Browser)
+    participant Auth as NextAuth.js (/api/auth)
+    participant NextServer as Next.js Server Actions
+    participant Cloudinary as Cloudinary Edge Engine
+    participant MongoDB as MongoDB Atlas
+
+    %% Phase 1: Authentication
+    rect rgb(15, 23, 42)
+        note over Citizen, MongoDB: Phase 1: 1-Tap Frictionless Authentication
+        Citizen->>PWA: Opens app & taps "Report Hazard"
+        alt Not Logged In
+            PWA->>Citizen: Bottom drawer prompt: "Continue with Google"
+            Citizen->>PWA: Taps "Continue with Google"
+            PWA->>Auth: Initiates Google OAuth exchange
+            Auth->>MongoDB: Upsert User (name, email, role: "CITIZEN")
+            Auth-->>PWA: Sets encrypted JWT session cookie
+        else Already Logged In
+            PWA->>PWA: Reads existing session cookie
+        end
+    end
+
+    %% Phase 2: Ingestion & Cloudinary Pipeline
+    rect rgb(30, 27, 75)
+        note over Citizen, Cloudinary: Phase 2: Ingestion & Cloudinary Pipeline
+        PWA->>Citizen: Requests Camera & GPS access
+        Citizen->>PWA: Records 10s video & speaks issue aloud
+        PWA->>NextServer: POST /api/cloudinary/sign (Request signed token)
+        NextServer-->>PWA: Returns signed timestamp, API key & params
+        
+        PWA->>Cloudinary: Direct POST: Streams video binary + raw_convert: google_speech
+        note over Cloudinary: Cloudinary processes upload:<br/>1. Executes speech-to-text (Google Speech)<br/>2. Mints public_id (e.g., civiclens/hz_102)<br/>3. Applies e_pixelate_faces ready for delivery
+        Cloudinary-->>PWA: Returns { public_id, secure_url, transcript }
+    end
+
+    %% Phase 3: Database Persistence
+    rect rgb(6, 78, 59)
+        note over PWA, MongoDB: Phase 3: Database Persistence & Feedback
+        PWA->>NextServer: Server Action: createGrievance(public_id, transcript, GPS)
+        note over NextServer: Parses transcript for keyword tags<br/>(#OpenManhole, #Urgent) and sets severity
+        NextServer->>MongoDB: Grievance.create({ reportedBy: userId, publicId, status: "OPEN", ... })
+        MongoDB-->>NextServer: Confirms write (Ticket ID: #CL-8921)
+        NextServer-->>PWA: Returns success & ticketId
+        PWA->>Citizen: Renders /report/[id] (Sanitized preview & tracking ID)
+    end
+
+    %% Phase 4: My Reports & Community Engagement
+    rect rgb(49, 46, 129)
+        note over Citizen, MongoDB: Phase 4: My Reports & Community Engagement
+        Citizen->>PWA: Visits "/my-reports" or "/explore"
+        PWA->>MongoDB: Fetch grievances where reportedBy == userId
+        MongoDB-->>PWA: Returns tickets with live statuses
+        PWA->>Citizen: Displays tracking timeline (Open -> Dispatched -> Resolved)
+        
+        opt Neighbor Upvoting
+            Citizen->>PWA: Taps "I'm Affected" on another community pin
+            PWA->>NextServer: Server Action: toggleUpvote(ticketId)
+            NextServer->>MongoDB: Atomic update: $addToSet { upvotedBy: userId }, $inc { upvotesCount: 1 }
+            MongoDB-->>PWA: Updated upvote counter
+        end
+    end
