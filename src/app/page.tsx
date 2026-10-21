@@ -118,7 +118,7 @@ export default function Home() {
           </CardContent>
 
           <CardFooter className="border-t border-border pt-3 text-[11px] text-muted-foreground flex justify-between">
-            <span>Preset: base-maia</span>
+            <span>Theme: DashStack Style 1</span>
             <span>Next.js 16 + Tailwind v4</span>
           </CardFooter>
         </Card>
