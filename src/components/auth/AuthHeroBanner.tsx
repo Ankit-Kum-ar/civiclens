@@ -12,56 +12,59 @@ export function AuthHeroBanner({
   authorOrSubtitle = "Real-time AI-triaged civic action across your neighborhood.",
 }: AuthHeroBannerProps) {
   return (
-    <div className="relative hidden w-full lg:flex lg:w-1/2 flex-col justify-between overflow-hidden rounded-[20px] p-8 text-white select-none min-h-[580px] bg-sidebar">
-      {/* Background Graphic: Atmospheric smart-city & civic-tech visual layer */}
+    <div className="relative hidden w-full lg:flex lg:w-1/2 flex-col justify-between overflow-hidden rounded-[20px] p-8 text-white select-none min-h-[580px] bg-[#121824] shadow-2xl">
+      {/* Background Graphic: Rich atmospheric dusk gradient & smart-city aesthetic matching the reference image */}
       <div
         className="absolute inset-0 pointer-events-none"
         aria-hidden="true"
       >
-        {/* Deep gradient matching reference aesthetic with theme variables */}
-        <div className="absolute inset-0 bg-gradient-to-b from-primary/30 via-sidebar to-sidebar" />
+        {/* Rich atmospheric dusk-to-night gradient */}
+        <div className="absolute inset-0 bg-gradient-to-b from-[#2E2856] via-[#1A1E36] to-[#0D111E]" />
 
-        {/* Dynamic mesh glow effects using DashStack chart/primary tokens */}
-        <div className="absolute -top-24 -left-24 h-96 w-96 rounded-full bg-primary/25 blur-3xl" />
-        <div className="absolute bottom-10 right-0 h-96 w-96 rounded-full bg-chart-5/25 blur-3xl" />
+        {/* Ambient radial glows */}
+        <div className="absolute -top-16 -left-16 h-80 w-80 rounded-full bg-[#4880FF]/30 blur-[100px]" />
+        <div className="absolute top-1/2 right-0 h-96 w-96 rounded-full bg-[#6226EF]/25 blur-[120px]" />
+        <div className="absolute -bottom-20 left-1/3 h-72 w-72 rounded-full bg-[#3B82F6]/20 blur-[90px]" />
 
-        {/* Topographic and subtle geospatial grid contour illustration */}
+        {/* Topographic landscape layers and subtle star/grid points matching the photo */}
         <svg
-          className="absolute inset-0 h-full w-full opacity-25"
+          className="absolute inset-0 h-full w-full opacity-60"
           xmlns="http://www.w3.org/2000/svg"
+          preserveAspectRatio="none"
+          viewBox="0 0 500 700"
         >
           <defs>
-            <pattern
-              id="civic-grid"
-              width="48"
-              height="48"
-              patternUnits="userSpaceOnUse"
-            >
-              <path
-                d="M 48 0 L 0 0 0 48"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1"
-                className="text-primary-foreground/15"
-              />
-            </pattern>
-            <linearGradient id="horizon-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="var(--primary)" stopOpacity="0.4" />
-              <stop offset="100%" stopColor="var(--chart-5)" stopOpacity="0.1" />
+            <linearGradient id="dune-1" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#4338CA" stopOpacity="0.4" />
+              <stop offset="100%" stopColor="#1E1B4B" stopOpacity="0.9" />
+            </linearGradient>
+            <linearGradient id="dune-2" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#312E81" stopOpacity="0.7" />
+              <stop offset="100%" stopColor="#0F172A" stopOpacity="0.95" />
+            </linearGradient>
+            <linearGradient id="dune-front" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#1E1B4B" stopOpacity="0.8" />
+              <stop offset="100%" stopColor="#080C14" stopOpacity="1" />
             </linearGradient>
           </defs>
-          <rect width="100%" height="100%" fill="url(#civic-grid)" />
-          {/* Silhouettes reminiscent of landscape dunes / city horizons */}
+
+          {/* Smooth layered dunes reminiscent of visual reference */}
           <path
-            d="M0,320 Q200,240 400,310 T800,260 L800,600 L0,600 Z"
-            fill="url(#horizon-gradient)"
+            d="M0,280 C150,230 350,330 500,260 L500,700 L0,700 Z"
+            fill="url(#dune-1)"
           />
           <path
-            d="M0,380 Q300,300 550,370 T900,340 L900,600 L0,600 Z"
-            fill="var(--background)"
-            opacity="0.85"
+            d="M0,360 C120,300 280,390 500,320 L500,700 L0,700 Z"
+            fill="url(#dune-2)"
+          />
+          <path
+            d="M0,450 C200,380 320,490 500,420 L500,700 L0,700 Z"
+            fill="url(#dune-front)"
           />
         </svg>
+
+        {/* Subtle vignette border */}
+        <div className="absolute inset-0 ring-1 ring-inset ring-white/10 rounded-[20px]" />
       </div>
 
       {/* Top Bar: Brand Logo + 'Back to website' pill button */}
@@ -82,7 +85,7 @@ export function AuthHeroBanner({
 
         <Link
           href="/"
-          className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3.5 py-1.5 text-xs font-medium text-white/90 backdrop-blur-md ring-1 ring-white/20 transition-all hover:bg-white/20 hover:text-white"
+          className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3.5 py-1.5 text-xs font-medium text-white/95 backdrop-blur-md ring-1 ring-white/20 transition-all hover:bg-white/25 hover:text-white shadow-xs"
         >
           <span>Back to website</span>
           <ArrowLeft className="h-3 w-3 rotate-180 transition-transform group-hover:translate-x-0.5" />
@@ -92,10 +95,10 @@ export function AuthHeroBanner({
       {/* Bottom Section: Hero Tagline + Pagination Dots */}
       <div className="relative z-10 mt-auto pt-16">
         <blockquote className="space-y-2">
-          <p className="font-heading text-2xl font-bold leading-snug tracking-tight text-white sm:text-3xl drop-shadow-sm">
+          <p className="font-heading text-2xl font-bold leading-snug tracking-tight text-white sm:text-3xl drop-shadow-md">
             {quote}
           </p>
-          <p className="text-sm font-normal text-white/70">
+          <p className="text-sm font-normal text-white/80 drop-shadow-xs">
             {authorOrSubtitle}
           </p>
         </blockquote>

@@ -114,7 +114,7 @@ export default function LoginPage() {
                 onChange={handleChange}
                 disabled={isSubmitting}
                 aria-invalid={Boolean(errors.email)}
-                className="h-11 rounded-xl bg-input/20 border-border text-foreground placeholder:text-muted-foreground focus-visible:bg-transparent"
+                className="h-11 rounded-xl bg-card border-border/80 text-foreground placeholder:text-muted-foreground/80 focus-visible:border-primary shadow-xs"
               />
               {errors.email && (
                 <p className="text-xs font-medium text-destructive mt-1">
@@ -139,7 +139,7 @@ export default function LoginPage() {
                   onChange={handleChange}
                   disabled={isSubmitting}
                   aria-invalid={Boolean(errors.password)}
-                  className="h-11 rounded-xl bg-input/20 border-border pr-11 text-foreground placeholder:text-muted-foreground focus-visible:bg-transparent"
+                  className="h-11 rounded-xl bg-card border-border/80 pr-11 text-foreground placeholder:text-muted-foreground/80 focus-visible:border-primary shadow-xs"
                 />
                 <button
                   type="button"
