@@ -1,17 +1,27 @@
 import { NextResponse } from "next/server";
-import mongoose from "mongoose";
+import { connectDB, getConnectionState, ConnectionReadyState } from "@/lib/db";
+import { logger } from "@/lib/logger";
 
 // Map Mongoose readyState numbers to human-readable status
 const MONGO_STATES: Record<number, string> = {
-  0: "disconnected",
-  1: "connected",
-  2: "connecting",
-  3: "disconnecting",
+  [ConnectionReadyState.DISCONNECTED]: "disconnected",
+  [ConnectionReadyState.CONNECTED]: "connected",
+  [ConnectionReadyState.CONNECTING]: "connecting",
+  [ConnectionReadyState.DISCONNECTING]: "disconnecting",
 };
 
 export async function GET() {
-  const dbStateCode = mongoose.connection?.readyState ?? 0;
-  const isDbConnected = dbStateCode === 1;
+  // Proactively attempt connection to accurately verify database status
+  try {
+    if (process.env.MONGODB_URI) {
+      await connectDB();
+    }
+  } catch (error) {
+    logger.warn({ err: error }, "Database connection failed during health check");
+  }
+
+  const dbStateCode = getConnectionState();
+  const isDbConnected = dbStateCode === ConnectionReadyState.CONNECTED;
 
   // Environment sanity checks (true/false flags only, never exposing secret values)
   const envCheck = {
@@ -25,7 +35,7 @@ export async function GET() {
     ),
   };
 
-  const isHealthy = envCheck.mongodb; // Healthy if base configs exist
+  const isHealthy = isDbConnected && envCheck.mongodb;
 
   const payload = {
     status: isHealthy ? "healthy" : "degraded",
@@ -45,6 +55,15 @@ export async function GET() {
         .map(([name]) => name),
     },
   };
+
+  logger.info(
+    {
+      status: payload.status,
+      database: payload.services.database.status,
+      uptime: payload.uptime,
+    },
+    "Health check performed"
+  );
 
   return NextResponse.json(payload, {
     status: isHealthy ? 200 : 503,
