@@ -10,7 +10,12 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-4 sm:p-6 md:p-8 lg:p-12 bg-background transition-colors duration-200">
+    <div className="relative min-h-screen w-full flex items-center justify-center p-3 sm:p-6 md:p-8 lg:p-10 bg-background transition-colors duration-200">
+      {/* Absolute theme toggle on the top right of the screen so it doesn't push the card layout down */}
+      <div className="fixed top-4 right-4 z-50">
+        <ThemeToggle />
+      </div>
+
       {/* Decorative ambient background glows */}
       <div
         className="fixed inset-0 pointer-events-none overflow-hidden"
@@ -21,32 +26,24 @@ export default function AuthLayout({
       </div>
 
       {/* Main Split-Screen Container Card */}
-      <main className="relative z-10 w-full max-w-[1100px] overflow-hidden rounded-[24px] bg-card p-3 sm:p-4 shadow-2xl ring-1 ring-border transition-all">
-        {/* Top bar with Theme Toggle */}
-        <div className="flex items-center justify-between p-2 mb-1">
-          {/* Mobile-only logo (since left hero collapses on mobile) */}
-          <div className="flex items-center gap-2 lg:invisible">
-            <Link href="/" className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-heading font-black text-sm">
-                CL
-              </div>
-              <span className="font-heading font-bold text-lg text-foreground">
-                {siteConfig.name}
-              </span>
-            </Link>
-          </div>
-
-          {/* Theme switcher on the top right */}
-          <div className="ml-auto flex items-center gap-2">
-            <ThemeToggle />
-            <Link
-              href="/"
-              className="lg:hidden inline-flex items-center gap-1.5 rounded-full bg-muted/60 px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-            >
-              <ArrowLeft className="h-3 w-3" />
-              <span>Home</span>
-            </Link>
-          </div>
+      <main className="relative z-10 w-full max-w-[1080px] overflow-hidden rounded-[24px] bg-card p-3 sm:p-3.5 shadow-2xl ring-1 ring-border transition-all">
+        {/* Mobile-only bar (top logo & back button for small screens) */}
+        <div className="flex items-center justify-between px-2 py-1.5 mb-2 lg:hidden">
+          <Link href="/" className="flex items-center gap-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground font-heading font-black text-xs">
+              CL
+            </div>
+            <span className="font-heading font-bold text-base text-foreground">
+              {siteConfig.name}
+            </span>
+          </Link>
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 rounded-full bg-muted/70 px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="h-3 w-3" />
+            <span>Home</span>
+          </Link>
         </div>
 
         {/* Children contains the Split Layout (Hero banner on left + Form container on right) */}

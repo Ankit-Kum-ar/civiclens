@@ -29,22 +29,39 @@ const SLIDES: Slide[] = [
   },
 ];
 
+const DURATION_MS = 3000;
+const TICK_INTERVAL = 50;
+
 interface AuthHeroBannerProps {
   quote?: string;
   authorOrSubtitle?: string;
 }
 
-export function AuthHeroBanner(_props: AuthHeroBannerProps = {}) {
+export function AuthHeroBanner(_props?: AuthHeroBannerProps) {
+  void _props;
   const [currentSlide, setCurrentSlide] = React.useState(0);
+  const [progress, setProgress] = React.useState(0); // 0 to 100
 
-  // Automatically transition every 3 seconds
+  // Progress animation and auto-rotation every 3 seconds
   React.useEffect(() => {
     const timer = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % SLIDES.length);
-    }, 3000);
+      setProgress((prev) => {
+        const next = prev + (TICK_INTERVAL / DURATION_MS) * 100;
+        if (next >= 100) {
+          setCurrentSlide((slide) => (slide + 1) % SLIDES.length);
+          return 0;
+        }
+        return next;
+      });
+    }, TICK_INTERVAL);
 
     return () => clearInterval(timer);
   }, []);
+
+  const handleSelectSlide = (index: number) => {
+    setCurrentSlide(index);
+    setProgress(0);
+  };
 
   return (
     <div className="relative hidden w-full lg:flex lg:w-1/2 flex-col justify-between overflow-hidden rounded-[20px] p-8 text-white select-none min-h-[580px] shadow-2xl transition-colors duration-200 bg-gradient-to-b from-primary via-chart-5 to-[#1A1E36] dark:from-[#2E2856] dark:via-[#1A1E36] dark:to-[#0D111E]">
@@ -159,7 +176,7 @@ export function AuthHeroBanner(_props: AuthHeroBannerProps = {}) {
 
       {/* Bottom Section: 3-Slide Animated Carousel */}
       <div className="relative z-10 mt-auto pt-16">
-        <div className="min-h-[140px] flex flex-col justify-end">
+        <div className="relative min-h-[140px] flex flex-col justify-end">
           {SLIDES.map((slide, index) => {
             const isActive = index === currentSlide;
             return (
@@ -167,8 +184,8 @@ export function AuthHeroBanner(_props: AuthHeroBannerProps = {}) {
                 key={slide.quote}
                 className={`transition-all duration-700 transform ${
                   isActive
-                    ? "opacity-100 translate-y-0 relative"
-                    : "opacity-0 translate-y-3 absolute pointer-events-none"
+                    ? "opacity-100 translate-y-0 relative z-10"
+                    : "opacity-0 translate-y-3 absolute inset-0 pointer-events-none z-0"
                 }`}
               >
                 <div className="inline-flex items-center rounded-full bg-white/20 px-2.5 py-0.5 text-[11px] font-medium text-white/90 backdrop-blur-md mb-2.5 ring-1 ring-white/20">
@@ -187,21 +204,30 @@ export function AuthHeroBanner(_props: AuthHeroBannerProps = {}) {
           })}
         </div>
 
-        {/* Carousel Indicator Dots with 3-second active states */}
+        {/* Carousel Progress Bars: smoothly fills up across the 3 seconds */}
         <div className="mt-8 flex items-center gap-2">
-          {SLIDES.map((_, index) => (
-            <button
-              key={index}
-              type="button"
-              onClick={() => setCurrentSlide(index)}
-              aria-label={`Go to slide ${index + 1}`}
-              className={`h-1.5 rounded-full transition-all duration-500 cursor-pointer ${
-                index === currentSlide
-                  ? "w-6 bg-white shadow-sm"
-                  : "w-1.5 bg-white/40 hover:bg-white/70"
-              }`}
-            />
-          ))}
+          {SLIDES.map((_, index) => {
+            const isActive = index === currentSlide;
+            const isCompleted = index < currentSlide;
+
+            return (
+              <button
+                key={index}
+                type="button"
+                onClick={() => handleSelectSlide(index)}
+                aria-label={`Go to slide ${index + 1}`}
+                className="group relative h-1.5 w-8 rounded-full overflow-hidden bg-white/30 hover:bg-white/40 transition-colors cursor-pointer"
+              >
+                {/* Active Progress fill bar */}
+                <span
+                  className="absolute inset-y-0 left-0 bg-white rounded-full transition-[width] ease-linear duration-75"
+                  style={{
+                    width: isActive ? `${progress}%` : isCompleted ? "100%" : "0%",
+                  }}
+                />
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>
