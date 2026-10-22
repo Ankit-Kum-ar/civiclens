@@ -1,16 +1,51 @@
+"use client";
+
+import * as React from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { siteConfig } from "@/config/site";
+
+interface Slide {
+  quote: string;
+  subtitle: string;
+  badge: string;
+}
+
+const SLIDES: Slide[] = [
+  {
+    quote: "Empowering Citizens, Fixing Infrastructure",
+    subtitle: "Real-time AI-triaged civic action across your neighborhood.",
+    badge: "Community First",
+  },
+  {
+    quote: "Privacy-Compliant Hazard Reporting",
+    subtitle: "Automated bystander and license plate blurring at the media edge.",
+    badge: "DPDP & GDPR Compliant",
+  },
+  {
+    quote: "Transparent Municipal Accountability",
+    subtitle: "Interactive Before & After resolution proof verified on the live map.",
+    badge: "100% Verified Proof",
+  },
+];
 
 interface AuthHeroBannerProps {
   quote?: string;
   authorOrSubtitle?: string;
 }
 
-export function AuthHeroBanner({
-  quote = "Empowering Citizens, Fixing Infrastructure",
-  authorOrSubtitle = "Real-time AI-triaged civic action across your neighborhood.",
-}: AuthHeroBannerProps) {
+export function AuthHeroBanner(_props: AuthHeroBannerProps = {}) {
+  const [currentSlide, setCurrentSlide] = React.useState(0);
+
+  // Automatically transition every 3 seconds
+  React.useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % SLIDES.length);
+    }, 3000);
+
+    return () => clearInterval(timer);
+  }, []);
+
   return (
     <div className="relative hidden w-full lg:flex lg:w-1/2 flex-col justify-between overflow-hidden rounded-[20px] p-8 text-white select-none min-h-[580px] shadow-2xl transition-colors duration-200 bg-gradient-to-b from-primary via-chart-5 to-[#1A1E36] dark:from-[#2E2856] dark:via-[#1A1E36] dark:to-[#0D111E]">
       {/* Background Graphic: Responsive atmospheric smart-city backdrop in both Light and Dark mode */}
@@ -122,22 +157,51 @@ export function AuthHeroBanner({
         </Link>
       </div>
 
-      {/* Bottom Section: Hero Tagline + Pagination Dots */}
+      {/* Bottom Section: 3-Slide Animated Carousel */}
       <div className="relative z-10 mt-auto pt-16">
-        <blockquote className="space-y-2">
-          <p className="font-heading text-2xl font-bold leading-snug tracking-tight text-white sm:text-3xl drop-shadow-md">
-            {quote}
-          </p>
-          <p className="text-sm font-normal text-white/85 drop-shadow-xs">
-            {authorOrSubtitle}
-          </p>
-        </blockquote>
+        <div className="min-h-[140px] flex flex-col justify-end">
+          {SLIDES.map((slide, index) => {
+            const isActive = index === currentSlide;
+            return (
+              <div
+                key={slide.quote}
+                className={`transition-all duration-700 transform ${
+                  isActive
+                    ? "opacity-100 translate-y-0 relative"
+                    : "opacity-0 translate-y-3 absolute pointer-events-none"
+                }`}
+              >
+                <div className="inline-flex items-center rounded-full bg-white/20 px-2.5 py-0.5 text-[11px] font-medium text-white/90 backdrop-blur-md mb-2.5 ring-1 ring-white/20">
+                  {slide.badge}
+                </div>
+                <blockquote className="space-y-2">
+                  <p className="font-heading text-2xl font-bold leading-snug tracking-tight text-white sm:text-3xl drop-shadow-md">
+                    {slide.quote}
+                  </p>
+                  <p className="text-sm font-normal text-white/85 drop-shadow-xs">
+                    {slide.subtitle}
+                  </p>
+                </blockquote>
+              </div>
+            );
+          })}
+        </div>
 
-        {/* Carousel indicators */}
+        {/* Carousel Indicator Dots with 3-second active states */}
         <div className="mt-8 flex items-center gap-2">
-          <span className="h-1.5 w-6 rounded-full bg-white transition-all shadow-sm" />
-          <span className="h-1.5 w-1.5 rounded-full bg-white/50" />
-          <span className="h-1.5 w-1.5 rounded-full bg-white/50" />
+          {SLIDES.map((_, index) => (
+            <button
+              key={index}
+              type="button"
+              onClick={() => setCurrentSlide(index)}
+              aria-label={`Go to slide ${index + 1}`}
+              className={`h-1.5 rounded-full transition-all duration-500 cursor-pointer ${
+                index === currentSlide
+                  ? "w-6 bg-white shadow-sm"
+                  : "w-1.5 bg-white/40 hover:bg-white/70"
+              }`}
+            />
+          ))}
         </div>
       </div>
     </div>
