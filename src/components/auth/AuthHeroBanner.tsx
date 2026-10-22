@@ -41,7 +41,7 @@ export function AuthHeroBanner(_props?: AuthHeroBannerProps) {
   const [currentSlide, setCurrentSlide] = React.useState(0);
   const [progress, setProgress] = React.useState(0); // 0 to 100
 
-  // Robust interval timer that never pauses or desyncs across light/dark theme switches
+  // Robust interval timer that resets cleanly per slide
   React.useEffect(() => {
     const timer = setInterval(() => {
       setProgress((prev) => {
@@ -55,7 +55,7 @@ export function AuthHeroBanner(_props?: AuthHeroBannerProps) {
     }, TICK_INTERVAL);
 
     return () => clearInterval(timer);
-  }, []);
+  }, [currentSlide]);
 
   const handleSelectSlide = (index: number) => {
     setCurrentSlide(index);
