@@ -30,7 +30,6 @@ const SLIDES: Slide[] = [
 ];
 
 const DURATION_MS = 3000;
-const TICK_INTERVAL = 50;
 
 interface AuthHeroBannerProps {
   quote?: string;
@@ -42,21 +41,29 @@ export function AuthHeroBanner(_props?: AuthHeroBannerProps) {
   const [currentSlide, setCurrentSlide] = React.useState(0);
   const [progress, setProgress] = React.useState(0); // 0 to 100
 
-  // Progress animation and auto-rotation every 3 seconds
+  // Smooth timestamp-based timer to animate progress and sequence 1 -> 2 -> 3 -> 1 cleanly
   React.useEffect(() => {
-    const timer = setInterval(() => {
-      setProgress((prev) => {
-        const next = prev + (TICK_INTERVAL / DURATION_MS) * 100;
-        if (next >= 100) {
-          setCurrentSlide((slide) => (slide + 1) % SLIDES.length);
-          return 0;
-        }
-        return next;
-      });
-    }, TICK_INTERVAL);
+    let startTime = performance.now();
+    let animationFrameId: number;
 
-    return () => clearInterval(timer);
-  }, []);
+    const frame = (now: number) => {
+      const elapsed = now - startTime;
+      const pct = Math.min((elapsed / DURATION_MS) * 100, 100);
+      setProgress(pct);
+
+      if (elapsed >= DURATION_MS) {
+        setCurrentSlide((slide) => (slide + 1) % SLIDES.length);
+        startTime = performance.now();
+        setProgress(0);
+      }
+
+      animationFrameId = requestAnimationFrame(frame);
+    };
+
+    animationFrameId = requestAnimationFrame(frame);
+
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [currentSlide]);
 
   const handleSelectSlide = (index: number) => {
     setCurrentSlide(index);
@@ -182,10 +189,10 @@ export function AuthHeroBanner(_props?: AuthHeroBannerProps) {
             return (
               <div
                 key={slide.quote}
-                className={`transition-all duration-700 transform ${
+                className={`transition-all duration-700 ease-out transform ${
                   isActive
-                    ? "opacity-100 translate-y-0 relative z-10"
-                    : "opacity-0 translate-y-3 absolute inset-0 pointer-events-none z-0"
+                    ? "opacity-100 translate-y-0 relative z-10 pointer-events-auto"
+                    : "opacity-0 translate-y-4 absolute inset-0 pointer-events-none z-0"
                 }`}
               >
                 <div className="inline-flex items-center rounded-full bg-white/20 px-2.5 py-0.5 text-[11px] font-medium text-white/90 backdrop-blur-md mb-2.5 ring-1 ring-white/20">
@@ -204,11 +211,10 @@ export function AuthHeroBanner(_props?: AuthHeroBannerProps) {
           })}
         </div>
 
-        {/* Carousel Progress Bars: smoothly fills up across the 3 seconds */}
+        {/* Carousel Indicators: 1 long animated progress bar + 2 small dots */}
         <div className="mt-8 flex items-center gap-2">
           {SLIDES.map((_, index) => {
             const isActive = index === currentSlide;
-            const isCompleted = index < currentSlide;
 
             return (
               <button
@@ -216,15 +222,19 @@ export function AuthHeroBanner(_props?: AuthHeroBannerProps) {
                 type="button"
                 onClick={() => handleSelectSlide(index)}
                 aria-label={`Go to slide ${index + 1}`}
-                className="group relative h-1.5 w-8 rounded-full overflow-hidden bg-white/30 hover:bg-white/40 transition-colors cursor-pointer"
+                className={`group relative h-1.5 rounded-full overflow-hidden transition-all duration-500 ease-out cursor-pointer ${
+                  isActive
+                    ? "w-8 bg-white/30 shadow-sm"
+                    : "w-1.5 bg-white/40 hover:bg-white/70"
+                }`}
               >
-                {/* Active Progress fill bar */}
-                <span
-                  className="absolute inset-y-0 left-0 bg-white rounded-full transition-[width] ease-linear duration-75"
-                  style={{
-                    width: isActive ? `${progress}%` : isCompleted ? "100%" : "0%",
-                  }}
-                />
+                {/* Active animated progress fill */}
+                {isActive && (
+                  <span
+                    className="absolute inset-y-0 left-0 bg-white rounded-full transition-[width] ease-linear duration-75"
+                    style={{ width: `${progress}%` }}
+                  />
+                )}
               </button>
             );
           })}
