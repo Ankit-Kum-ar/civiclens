@@ -17,13 +17,13 @@ export function SocialAuthButtons({
 }: SocialAuthButtonsProps) {
   return (
     <div className="grid grid-cols-2 gap-3 w-full">
-      {/* Google Button with Official Colored SVG */}
+      {/* Google Button with Visible High-Contrast Borders */}
       <Button
         type="button"
         variant="outline"
         disabled={isLoading}
         onClick={onGoogleSignIn}
-        className="w-full h-11 rounded-xl border-border bg-card hover:bg-muted/40 font-medium text-foreground transition-all duration-150 gap-2.5 shadow-xs"
+        className="w-full h-11 rounded-xl border border-border/80 dark:border-border bg-card/50 hover:bg-muted font-medium text-foreground transition-all duration-150 gap-2.5 shadow-sm"
       >
         <svg
           className="h-4 w-4 shrink-0"
@@ -50,13 +50,13 @@ export function SocialAuthButtons({
         <span className="text-sm">Google</span>
       </Button>
 
-      {/* Apple Button with Official Inline SVG */}
+      {/* Apple Button with Visible High-Contrast Borders */}
       <Button
         type="button"
         variant="outline"
         disabled={isLoading}
         onClick={onAppleSignIn}
-        className="w-full h-11 rounded-xl border-border bg-card hover:bg-muted/40 font-medium text-foreground transition-all duration-150 gap-2.5 shadow-xs"
+        className="w-full h-11 rounded-xl border border-border/80 dark:border-border bg-card/50 hover:bg-muted font-medium text-foreground transition-all duration-150 gap-2.5 shadow-sm"
       >
         <svg
           className="h-4 w-4 shrink-0 fill-current text-foreground"

@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { siteConfig } from "@/config/site";
 
 interface Slide {
@@ -30,6 +29,7 @@ const SLIDES: Slide[] = [
 ];
 
 const DURATION_MS = 3000;
+const TICK_INTERVAL = 30;
 
 interface AuthHeroBannerProps {
   quote?: string;
@@ -41,29 +41,21 @@ export function AuthHeroBanner(_props?: AuthHeroBannerProps) {
   const [currentSlide, setCurrentSlide] = React.useState(0);
   const [progress, setProgress] = React.useState(0); // 0 to 100
 
-  // Smooth timestamp-based timer to animate progress and sequence 1 -> 2 -> 3 -> 1 cleanly
+  // Robust interval timer that never pauses or desyncs across light/dark theme switches
   React.useEffect(() => {
-    let startTime = performance.now();
-    let animationFrameId: number;
+    const timer = setInterval(() => {
+      setProgress((prev) => {
+        const next = prev + (TICK_INTERVAL / DURATION_MS) * 100;
+        if (next >= 100) {
+          setCurrentSlide((slide) => (slide + 1) % SLIDES.length);
+          return 0;
+        }
+        return next;
+      });
+    }, TICK_INTERVAL);
 
-    const frame = (now: number) => {
-      const elapsed = now - startTime;
-      const pct = Math.min((elapsed / DURATION_MS) * 100, 100);
-      setProgress(pct);
-
-      if (elapsed >= DURATION_MS) {
-        setCurrentSlide((slide) => (slide + 1) % SLIDES.length);
-        startTime = performance.now();
-        setProgress(0);
-      }
-
-      animationFrameId = requestAnimationFrame(frame);
-    };
-
-    animationFrameId = requestAnimationFrame(frame);
-
-    return () => cancelAnimationFrame(animationFrameId);
-  }, [currentSlide]);
+    return () => clearInterval(timer);
+  }, []);
 
   const handleSelectSlide = (index: number) => {
     setCurrentSlide(index);
@@ -156,7 +148,7 @@ export function AuthHeroBanner(_props?: AuthHeroBannerProps) {
         <div className="absolute inset-0 ring-1 ring-inset ring-white/15 rounded-[20px]" />
       </div>
 
-      {/* Top Bar: Brand Logo + 'Back to website' pill button */}
+      {/* Top Bar: Brand Logo (without redundant Back button) */}
       <div className="relative z-10 flex items-center justify-between">
         <Link
           href="/"
@@ -170,14 +162,6 @@ export function AuthHeroBanner(_props?: AuthHeroBannerProps) {
           <span className="font-heading text-xl font-bold tracking-tight text-white drop-shadow-sm">
             {siteConfig.name}
           </span>
-        </Link>
-
-        <Link
-          href="/"
-          className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3.5 py-1.5 text-xs font-medium text-white backdrop-blur-md ring-1 ring-white/30 transition-all hover:bg-white/30 shadow-xs"
-        >
-          <span>Back to website</span>
-          <ArrowLeft className="h-3 w-3 rotate-180 transition-transform group-hover:translate-x-0.5" />
         </Link>
       </div>
 
