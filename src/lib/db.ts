@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { logger } from "@/lib/logger";
 
 /**
  * Interface representing the cached Mongoose connection structure.
@@ -43,12 +44,14 @@ export async function connectDB(): Promise<typeof mongoose> {
   const uri = process.env.MONGODB_URI || MONGODB_URI;
 
   if (!uri) {
+    logger.error("Missing MONGODB_URI in environment variables");
     throw new Error(
       "Invalid/Missing environment variable: 'MONGODB_URI'. Please define it in your .env.local file."
     );
   }
 
   if (cached.conn) {
+    logger.debug("MongoDB reusing cached connection");
     return cached.conn;
   }
 
@@ -57,12 +60,19 @@ export async function connectDB(): Promise<typeof mongoose> {
       bufferCommands: false,
     };
 
+    logger.info("Connecting to MongoDB...");
+
     cached.promise = mongoose
       .connect(uri, opts)
       .then((m) => {
+        logger.info(
+          { host: m.connection.host, database: m.connection.name },
+          "MongoDB connected successfully"
+        );
         return m;
       })
       .catch((err) => {
+        logger.error({ err }, "Failed to connect to MongoDB");
         cached.promise = null;
         throw err;
       });
