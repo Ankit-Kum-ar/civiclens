@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { connectDB, getConnectionState, ConnectionReadyState } from "@/lib/db";
+import { cloudinary, cloudinaryConnect } from "@/lib/cloudinary";
 import { logger } from "@/lib/logger";
 
 // Map Mongoose readyState numbers to human-readable status
@@ -29,11 +30,45 @@ export async function GET() {
     authSecret: Boolean(process.env.AUTH_SECRET),
     googleAuth: Boolean(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET),
     cloudinary: Boolean(
-      process.env.CLOUDINARY_CLOUD_NAME &&
-      process.env.CLOUDINARY_API_KEY &&
-      process.env.CLOUDINARY_API_SECRET
+      (process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUD_NAME) &&
+      (process.env.CLOUDINARY_API_KEY || process.env.API_KEY) &&
+      (process.env.CLOUDINARY_API_SECRET || process.env.API_SECRET)
     ),
   };
+
+  // Test Cloudinary connection/ping if credentials are configured
+  let cloudinaryStatus: {
+    status: "connected" | "disconnected" | "not_configured" | "error";
+    connected: boolean;
+    error?: string;
+  } = {
+    status: "not_configured",
+    connected: false,
+  };
+
+  if (envCheck.cloudinary) {
+    try {
+      cloudinaryConnect();
+      const pingResult = await cloudinary.api.ping();
+      if (pingResult?.status === "ok") {
+        cloudinaryStatus = {
+          status: "connected",
+          connected: true,
+        };
+      } else {
+        cloudinaryStatus = {
+          status: "disconnected",
+          connected: false,
+        };
+      }
+    } catch (err) {
+      cloudinaryStatus = {
+        status: "error",
+        connected: false,
+        error: err instanceof Error ? err.message : "Cloudinary ping failed",
+      };
+    }
+  }
 
   const isHealthy = isDbConnected && envCheck.mongodb;
 
@@ -47,6 +82,7 @@ export async function GET() {
         status: MONGO_STATES[dbStateCode] || "unknown",
         connected: isDbConnected,
       },
+      cloudinary: cloudinaryStatus,
     },
     env: {
       configured: envCheck,
@@ -60,6 +96,7 @@ export async function GET() {
     {
       status: payload.status,
       database: payload.services.database.status,
+      cloudinary: payload.services.cloudinary.status,
       uptime: payload.uptime,
     },
     "Health check performed"
