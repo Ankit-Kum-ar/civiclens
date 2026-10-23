@@ -1,48 +1,11 @@
 import { compare } from "bcryptjs";
-import mongoose, { type InferSchemaType, type Model } from "mongoose";
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import authConfig from "@/auth.config";
 import { connectDB } from "@/lib/db";
 import { SignInSchema } from "@/lib/validations/auth";
+import { UserModel, AccountModel } from "@/models/user";
 import type { UserRole } from "@/types/next-auth";
-
-const userSchema = new mongoose.Schema(
-  {
-    name: { type: String, trim: true },
-    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
-    image: { type: String },
-    password: { type: String, select: false },
-    role: {
-      type: String,
-      enum: ["CITIZEN", "MUNICIPAL_OFFICER", "ADMIN"],
-      default: "CITIZEN",
-      required: true,
-    },
-    ward: { type: String },
-  },
-  { timestamps: true }
-);
-
-const accountSchema = new mongoose.Schema(
-  {
-    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
-    type: { type: String, required: true },
-    provider: { type: String, required: true },
-    providerAccountId: { type: String, required: true },
-  },
-  { timestamps: true }
-);
-
-accountSchema.index({ provider: 1, providerAccountId: 1 }, { unique: true });
-
-type UserDoc = InferSchemaType<typeof userSchema> & { _id: mongoose.Types.ObjectId };
-type AccountDoc = InferSchemaType<typeof accountSchema>;
-
-const UserModel = (mongoose.models.User as Model<UserDoc>) ||
-  mongoose.model<UserDoc>("User", userSchema);
-const AccountModel = (mongoose.models.Account as Model<AccountDoc>) ||
-  mongoose.model<AccountDoc>("Account", accountSchema);
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
