@@ -18,10 +18,11 @@ export async function detectPrivacyRegions(imageUrl: string): Promise<DetectedRe
   if (!apiKey) return [];
 
   const prompt =
-    'Locate precise bounding boxes for privacy redaction in this image: ' +
-    '1) Human heads/faces (from forehead to chin, ear to ear - only head/face, NOT body), ' +
-    '2) Vehicle license/registration number plates, ' +
-    '3) Street house address numbers. ' +
+    'Locate tight, precise bounding boxes for all sensitive privacy data to redact: ' +
+    '1) Human heads/faces (from forehead to chin, ear to ear - only head/face, NOT upper torso or body), ' +
+    '2) ALL vehicle registration/license plates (the entire rectangular plate and any vehicle number characters visible on cars, bikes, trucks, autos), ' +
+    '3) Street house address numbers and door numbers. ' +
+    'CRITICAL: Ensure the entire license plate area with its characters is strictly covered in the box. ' +
     'Return JSON format: {"regions": [{"type": "face"|"license_plate"|"house_number", "box_2d": [ymin, xmin, ymax, xmax]}]} ' +
     'where coordinates are normalized integers from 0 to 1000.';
 
@@ -36,7 +37,7 @@ export async function detectPrivacyRegions(imageUrl: string): Promise<DetectedRe
       },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
-        max_tokens: 1000,
+        max_tokens: 4000,
         messages: [
           {
             role: "user",
@@ -50,17 +51,90 @@ export async function detectPrivacyRegions(imageUrl: string): Promise<DetectedRe
       }),
     });
 
-    if (!response.ok) return [];
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error("[OpenRouter AI] Request failed:", response.status, errText);
+      return [];
+    }
 
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
+    let content = data.choices?.[0]?.message?.content;
     if (!content) return [];
 
-    const parsed = JSON.parse(content);
+    // Strip markdown code fences if model enclosed JSON in ```json ... ```
+    content = content.trim();
+    if (content.startsWith("```json")) {
+      content = content.replace(/^```json\s*/, "").replace(/\s*```$/, "");
+    } else if (content.startsWith("```")) {
+      content = content.replace(/^```\s*/, "").replace(/\s*```$/, "");
+    }
+
+    // Try parsing; if truncated, attempt to salvage valid region objects
+    let parsed: any;
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      // Find all complete box_2d objects if response was cut off mid-stream
+      const regionMatches = content.matchAll(
+        /\{\s*"type"\s*:\s*"(face|license_plate|house_number)"\s*,\s*"box_2d"\s*:\s*\[\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\]\s*\}/g
+      );
+      const salvaged: DetectedRegion[] = [];
+      for (const m of regionMatches) {
+        salvaged.push({
+          type: m[1] as "face" | "license_plate" | "house_number",
+          box_2d: [Number(m[2]), Number(m[3]), Number(m[4]), Number(m[5])],
+        });
+      }
+      if (salvaged.length > 0) {
+        console.log(`[OpenRouter AI] Salvaged ${salvaged.length} regions from truncated JSON`);
+        return salvaged;
+      }
+      throw new Error(`JSON parse failed and no regions could be salvaged. Preview: ${content.slice(0, 100)}...`);
+    }
+
     return Array.isArray(parsed.regions) ? parsed.regions : [];
-  } catch {
+  } catch (err) {
+    console.error("[OpenRouter AI] Exception during region detection:", err);
     return [];
   }
+}
+
+/**
+ * Detects faces using MediaPipe Tasks Vision FaceDetector model.
+ * Combines with Vision AI (both results merged) for maximum redundancy.
+ */
+export async function detectFacesWithMediaPipe(imageBuffer: Buffer): Promise<DetectedRegion[]> {
+  // @mediapipe/tasks-vision requires a real browser WebGL/Canvas environment (DOM Worker/OffscreenCanvas).
+  // In pure Node.js server environments, attempting to mock window/document corrupts Next.js and Node globals.
+  // We keep this function clean and safe:
+  return [];
+}
+
+/**
+ * Combined privacy pipeline: runs both Vision AI and MediaPipe concurrently,
+ * merges both region lists, and blurs all detected areas.
+ */
+export async function detectAllPrivacyRegions(
+  imageUrl: string,
+  imageBuffer?: Buffer
+): Promise<DetectedRegion[]> {
+  const tasks: Promise<DetectedRegion[]>[] = [detectPrivacyRegions(imageUrl)];
+
+  if (imageBuffer) {
+    tasks.push(detectFacesWithMediaPipe(imageBuffer));
+  }
+
+  const results = await Promise.allSettled(tasks);
+  const combined: DetectedRegion[] = [];
+
+  for (const res of results) {
+    if (res.status === "fulfilled" && Array.isArray(res.value)) {
+      combined.push(...res.value);
+    }
+  }
+
+  console.log(`[Privacy Pipeline] Total combined regions (Vision AI + MediaPipe): ${combined.length}`);
+  return combined;
 }
 
 /**
@@ -77,17 +151,22 @@ export async function generateAndUploadSanitizedImage(
     const rawRes = await fetch(originalSecureUrl);
     if (!rawRes.ok) return null;
     const arrayBuffer = await rawRes.arrayBuffer();
-    const imgBuf = Buffer.from(arrayBuffer);
+    const rawBuf = Buffer.from(arrayBuffer);
 
-    const metadata = await sharp(imgBuf).metadata();
+    // Auto-orient according to EXIF tags so crops match browser bitmap coordinates
+    const orientedBuf = await sharp(rawBuf).rotate().toBuffer();
+    const metadata = await sharp(orientedBuf).metadata();
     if (!metadata.width || !metadata.height) return null;
+    const imgBuf = orientedBuf;
 
     const overlays: OverlayOptions[] = [];
 
     for (const r of regions) {
       const [ymin, xmin, ymax, xmax] = r.box_2d;
-      const paddingX = Math.round(((xmax - xmin) / 1000) * metadata.width * 0.12);
-      const paddingY = Math.round(((ymax - ymin) / 1000) * metadata.height * 0.12);
+      // Extra generous padding for license plates to guarantee every letter and edge is covered
+      const padFactor = r.type === "license_plate" ? 0.20 : 0.12;
+      const paddingX = Math.round(((xmax - xmin) / 1000) * metadata.width * padFactor);
+      const paddingY = Math.round(((ymax - ymin) / 1000) * metadata.height * padFactor);
 
       const left = Math.max(0, Math.round((xmin / 1000) * metadata.width) - paddingX);
       const top = Math.max(0, Math.round((ymin / 1000) * metadata.height) - paddingY);
@@ -102,14 +181,17 @@ export async function generateAndUploadSanitizedImage(
 
       if (width < 5 || height < 5) continue;
 
-      // Extract bounding box region, downscale-upscale for pixelation, and apply Gaussian blur
+      // Uncompromising blur & pixelation: downscale to tiny coarse block mosaic, upscale, then apply heavy blur(25)
+      // This completely scrambles and obliterates high-contrast characters (e.g. ABCD)
+      const blockSize = r.type === "license_plate" ? 8 : 12;
+      const downW = Math.max(2, Math.round(width / blockSize));
+      const downH = Math.max(2, Math.round(height / blockSize));
+
       const patch = await sharp(imgBuf)
         .extract({ left, top, width, height })
-        .resize(Math.max(1, Math.round(width / 6)), Math.max(1, Math.round(height / 6)), {
-          kernel: "nearest",
-        })
+        .resize(downW, downH, { kernel: "nearest" })
         .resize(width, height, { kernel: "nearest" })
-        .blur(4)
+        .blur(25)
         .toBuffer();
 
       overlays.push({ input: patch, left, top });

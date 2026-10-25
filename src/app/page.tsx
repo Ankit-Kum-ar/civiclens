@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { auth } from "@/auth";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { ShieldCheck, ArrowRight, Loader2 } from "lucide-react";
 import { getCitizenDashboardStatsAction } from "@/actions/dashboard";
 import { CitizenHeader } from "@/components/dashboard/CitizenHeader";
@@ -117,6 +118,7 @@ function PublicLanding() {
 }
 
 async function SessionRouter() {
+  await connection();
   const session = await auth();
 
   if (!session?.user) {

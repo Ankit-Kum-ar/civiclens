@@ -39,6 +39,14 @@ export const createGrievanceSchema = z.object({
       confidenceScore: z.number().min(0).max(1).optional(),
     })
     .optional(),
+  detectedFaceBoxes: z
+    .array(
+      z.object({
+        type: z.enum(["face", "license_plate", "house_number"]),
+        box_2d: z.tuple([z.number(), z.number(), z.number(), z.number()]),
+      })
+    )
+    .optional(),
 });
 
 export type CreateGrievanceInput = z.infer<typeof createGrievanceSchema>;

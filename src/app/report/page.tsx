@@ -36,6 +36,26 @@ export default function ReportHazardPage() {
   });
   const [mediaFile, setMediaFile] = React.useState<File | null>(null);
   const [voiceBlob, setVoiceBlob] = React.useState<Blob | null>(null);
+  const [formKey, setFormKey] = React.useState<number>(0);
+
+  const facesRef = React.useRef<Promise<any>>(Promise.resolve([]));
+
+  React.useEffect(() => {
+    import("@/lib/mediaPipeClient")
+      .then((m) => m.preloadFaceDetector())
+      .catch(() => {});
+  }, []);
+
+  const handleMediaFileSelected = (file: File | null) => {
+    setMediaFile(file);
+    if (file && file.type.startsWith("image")) {
+      facesRef.current = import("@/lib/mediaPipeClient")
+        .then((m) => m.detectFacesInBrowser(file))
+        .catch(() => []);
+    } else {
+      facesRef.current = Promise.resolve([]);
+    }
+  };
 
   // Submission pipeline states
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -235,7 +255,10 @@ export default function ReportHazardPage() {
       }
 
       setUploadProgress(75);
-      setPipelineStep("Edge AI redacting faces & plate numbers...");
+      setPipelineStep("MediaPipe & Edge AI detecting faces & plate numbers...");
+
+      // Await the precomputed or running MediaPipe promise from file selection
+      const detectedFaceBoxes = isVid ? [] : await facesRef.current;
 
       // Optional voice note upload
       let audioData: { publicId?: string; secureUrl?: string } = {};
@@ -267,7 +290,7 @@ export default function ReportHazardPage() {
       setUploadProgress(90);
       setPipelineStep("Persisting municipal ticket into registry...");
 
-      // 3. Persist via Server Action
+      // 3. Persist via Server Action with both MediaPipe and Vision AI detections
       const grievanceResult = await createGrievanceAction({
         title,
         description,
@@ -284,6 +307,7 @@ export default function ReportHazardPage() {
           originalSecureUrl: uploadJson.secure_url,
           resourceType,
         },
+        detectedFaceBoxes,
         aiTriage: {
           audioPublicId: audioData.publicId,
           audioSecureUrl: audioData.secureUrl,
@@ -300,6 +324,15 @@ export default function ReportHazardPage() {
       setUploadProgress(100);
       setPipelineStep("Report logged! Redirecting to verification...");
       toast.success("Hazard report logged and anonymized!");
+
+      // 4. Reset all state fields so the report form is completely cleared
+      setTitle("");
+      setDescription("");
+      setCategory("Crater Pothole");
+      setSeverity("MEDIUM");
+      setMediaFile(null);
+      setVoiceBlob(null);
+      setFormKey((prev) => prev + 1);
 
       router.push(`/report/${grievanceResult.grievanceId}`);
     } catch (err: unknown) {
@@ -344,10 +377,10 @@ export default function ReportHazardPage() {
           </div>
 
           {/* Report Form */}
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form key={formKey} onSubmit={handleSubmit} className="space-y-5">
             <div className="rounded-2xl border border-border/80 bg-card p-5 shadow-xs">
               <ReportMediaDropzone
-                onFileSelected={setMediaFile}
+                onFileSelected={handleMediaFileSelected}
                 disabled={isSubmitting}
               />
             </div>

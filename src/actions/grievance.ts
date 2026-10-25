@@ -66,6 +66,7 @@ export async function createGrievanceAction(
         coordinates: data.location.coordinates,
         ward: data.location.ward,
         originalSecureUrl: data.media.originalSecureUrl,
+        clientRegions: data.detectedFaceBoxes,
       }
     );
 

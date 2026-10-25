@@ -32,7 +32,21 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         await connectDB();
 
         const email = String(credentials.email).toLowerCase().trim();
-        const user = await User.findOne({ email }).select("+passwordHash");
+        let user = await User.findOne({ email }).select("+passwordHash");
+
+        // Seed demo accounts on-demand if logging in for the first time
+        if (!user && (email === "aarav.citizen@civiclens.gov" || email === "municipalofficer@civiclens.gov")) {
+          const isOfficer = email === "municipalofficer@civiclens.gov";
+          const defaultHash = await bcrypt.hash("Password123!", 12);
+          user = await User.create({
+            name: isOfficer ? "Officer Rajesh Kumar" : "Aarav Sharma",
+            email,
+            passwordHash: defaultHash,
+            role: isOfficer ? USER_ROLES.MUNICIPAL_OFFICER : USER_ROLES.CITIZEN,
+            reputationPoints: isOfficer ? 100 : 15,
+            ward: "Ward 32",
+          });
+        }
 
         if (!user || !user.passwordHash) {
           return null;
