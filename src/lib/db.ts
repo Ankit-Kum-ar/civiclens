@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { logger } from "@/lib/logger";
+import "@/database";
 
 /**
  * Interface representing the cached Mongoose connection structure.

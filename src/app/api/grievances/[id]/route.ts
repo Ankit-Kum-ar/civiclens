@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { Grievance } from "@/database/Grievance";
+import "@/database/User";
 
 export async function GET(
   req: Request,

@@ -58,13 +58,14 @@ export async function createGrievanceAction(
 
     const data = parsed.data;
 
-    // Generate privacy-compliant edge redacted URL
-    const redactedSecureUrl = getRedactedMediaUrl(
+    // Generate privacy-compliant edge redacted URL with AI detection
+    const redactedSecureUrl = await getRedactedMediaUrl(
       data.media.publicId,
       data.media.resourceType as MediaResourceType,
       {
         coordinates: data.location.coordinates,
         ward: data.location.ward,
+        originalSecureUrl: data.media.originalSecureUrl,
       }
     );
 
