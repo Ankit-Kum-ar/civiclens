@@ -248,6 +248,17 @@ CLOUDINARY_UPLOAD_PRESET="civiclens_signed_preset"
 
 ---
 
+## 🔑 Demo Trial Access (Evaluators & Testers)
+
+For quick hackathon evaluation without registering a new account, use the pre-configured trial credentials directly on `/login` (with 1-click **Auto-fill** support):
+
+| Role | Email | Password | Access Area |
+|---|---|---|---|
+| **Citizen Reporter** | `aarav.citizen@civiclens.gov` | `Password123!` | `/` (Citizen Dashboard), `/report`, `/my-reports` |
+| **Municipal Officer** | *(Google Auth or configured ADMIN_EMAILS)* | Google SSO | `/admin/dashboard` (Triage Hub) |
+
+---
+
 ## 🔄 Core Workflows
 
 ### 1. Filing an Incident Report

@@ -122,6 +122,42 @@ function LoginFormContent() {
             </p>
           </div>
 
+          {/* Demo Trial Quick-Fill Badge */}
+          <div className="mb-6 rounded-2xl border border-[#4880FF]/30 bg-[#4880FF]/10 p-3.5 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-[#4880FF] uppercase tracking-wider flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-[#00B69B] animate-pulse" />
+                Demo Citizen Trial Account
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setFormData({
+                    email: "aarav.citizen@civiclens.gov",
+                    password: "Password123!",
+                    rememberMe: true,
+                  });
+                  setErrors({});
+                  setGeneralError(null);
+                  toast.success("Demo credentials loaded! Click Log In.");
+                }}
+                className="text-xs font-bold text-[#4880FF] hover:underline cursor-pointer bg-card px-2.5 py-1 rounded-lg border border-[#4880FF]/30 shadow-xs"
+              >
+                Auto-fill
+              </button>
+            </div>
+            <div className="text-xs font-mono text-muted-foreground flex flex-col gap-0.5">
+              <div>
+                <span className="text-foreground font-semibold">Email:</span>{" "}
+                <code className="text-[#4880FF]">aarav.citizen@civiclens.gov</code>
+              </div>
+              <div>
+                <span className="text-foreground font-semibold">Password:</span>{" "}
+                <code className="text-[#4880FF]">Password123!</code>
+              </div>
+            </div>
+          </div>
+
           {/* Login Form */}
           <form onSubmit={handleSubmit} className="space-y-4" noValidate>
             {generalError && (
