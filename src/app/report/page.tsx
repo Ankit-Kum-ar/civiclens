@@ -288,37 +288,55 @@ export default function ReportHazardPage() {
       }
 
       setUploadProgress(90);
-      setPipelineStep("Persisting municipal ticket into registry...");
+      setPipelineStep("Persisting municipal ticket into registry... (~12s remaining)");
 
-      // 3. Persist via Server Action with both MediaPipe and Vision AI detections
-      const grievanceResult = await createGrievanceAction({
-        title,
-        description,
-        category,
-        severity,
-        location: {
-          coordinates: location.coordinates,
-          address: location.address,
-          ward: location.ward,
-          city: location.city,
-        },
-        media: {
-          publicId: uploadJson.public_id,
-          originalSecureUrl: uploadJson.secure_url,
-          resourceType,
-        },
-        detectedFaceBoxes,
-        aiTriage: {
-          audioPublicId: audioData.publicId,
-          audioSecureUrl: audioData.secureUrl,
-          transcript: description,
-          detectedCategory: category,
-          confidenceScore: 0.95,
-        },
-      });
+      // 12-second countdown timer so user knows exactly how long AI privacy & persistence takes
+      let secondsLeft = 12;
+      const countdownInterval = setInterval(() => {
+        secondsLeft -= 1;
+        if (secondsLeft > 0) {
+          setPipelineStep(
+            `Persisting municipal ticket into registry... (~${secondsLeft}s remaining)`
+          );
+        } else {
+          setPipelineStep("Finalizing cryptographic ticket registration...");
+        }
+      }, 1000);
 
-      if (!grievanceResult.success || !grievanceResult.grievanceId) {
-        throw new Error(grievanceResult.message || "Failed to persist grievance.");
+      let grievanceResult;
+      try {
+        // 3. Persist via Server Action with both MediaPipe and Vision AI detections
+        grievanceResult = await createGrievanceAction({
+          title,
+          description,
+          category,
+          severity,
+          location: {
+            coordinates: location.coordinates,
+            address: location.address,
+            ward: location.ward,
+            city: location.city,
+          },
+          media: {
+            publicId: uploadJson.public_id,
+            originalSecureUrl: uploadJson.secure_url,
+            resourceType,
+          },
+          detectedFaceBoxes,
+          aiTriage: {
+            audioPublicId: audioData.publicId,
+            audioSecureUrl: audioData.secureUrl,
+            transcript: description,
+            detectedCategory: category,
+            confidenceScore: 0.95,
+          },
+        });
+      } finally {
+        clearInterval(countdownInterval);
+      }
+
+      if (!grievanceResult?.success || !grievanceResult?.grievanceId) {
+        throw new Error(grievanceResult?.message || "Failed to persist grievance.");
       }
 
       setUploadProgress(100);

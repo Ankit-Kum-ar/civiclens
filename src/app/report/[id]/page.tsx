@@ -37,6 +37,8 @@ function ConfirmationContent() {
 
   const [sliderPosition, setSliderPosition] = React.useState(50);
   const [grievance, setGrievance] = React.useState<GrievanceDetail | null>(null);
+  const [isLoadingTicket, setIsLoadingTicket] = React.useState(true);
+  const [imageLoaded, setImageLoaded] = React.useState(false);
   const [viewerRole, setViewerRole] = React.useState<string>("CITIZEN");
   const [redactedLoadError, setRedactedLoadError] = React.useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = React.useState(false);
@@ -46,6 +48,8 @@ function ConfirmationContent() {
     async function fetchTicket() {
       // Clear previous grievance immediately so older report details don't linger
       setGrievance(null);
+      setIsLoadingTicket(true);
+      setImageLoaded(false);
       setRedactedLoadError(false);
 
       try {
@@ -63,6 +67,10 @@ function ConfirmationContent() {
         }
       } catch {
         // Fallback or demo state
+      } finally {
+        if (isMounted) {
+          setIsLoadingTicket(false);
+        }
       }
     }
     if (grievanceId) {
@@ -72,6 +80,12 @@ function ConfirmationContent() {
       isMounted = false;
     };
   }, [grievanceId]);
+
+  const rawImageUrl = grievance?.media?.originalSecureUrl || "";
+  const redactedImageUrl =
+    (!redactedLoadError && grievance?.media?.redactedSecureUrl) ||
+    grievance?.media?.originalSecureUrl ||
+    "";
 
   const isOfficerOrAdmin =
     viewerRole === "MUNICIPAL_OFFICER" || viewerRole === "ADMIN";
@@ -250,7 +264,28 @@ function ConfirmationContent() {
         )}
 
         {/* Visual Evidence: Video Player if video, or Before/After Privacy Slider if photo */}
-        {grievance?.media?.resourceType === "video" ||
+        {isLoadingTicket || !grievance ? (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                Retrieving Visual Evidence...
+              </label>
+              <span className="text-[11px] text-muted-foreground">
+                Fetching secure media
+              </span>
+            </div>
+            <div className="relative overflow-hidden rounded-2xl border border-border bg-muted/30 aspect-video shadow-md flex flex-col items-center justify-center gap-3">
+              <div className="relative">
+                <div className="h-12 w-12 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
+                <ShieldCheck className="h-5 w-5 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+              </div>
+              <p className="text-xs font-medium text-muted-foreground animate-pulse">
+                Loading redacted visual evidence...
+              </p>
+            </div>
+          </div>
+        ) : grievance?.media?.resourceType === "video" ||
         grievance?.media?.originalSecureUrl?.endsWith(".mp4") ||
         grievance?.media?.originalSecureUrl?.endsWith(".webm") ? (
           <div className="space-y-2">
@@ -293,37 +328,52 @@ function ConfirmationContent() {
               </span>
             </div>
 
-            <div className="relative overflow-hidden rounded-2xl border border-border bg-black aspect-video select-none shadow-md">
-              {/* Right: Redacted Layer (Cloudinary e_pixelate_faces) */}
-              <img
-                src={
-                  (!redactedLoadError && grievance?.media?.redactedSecureUrl) ||
-                  grievance?.media?.originalSecureUrl ||
-                  "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1200&q=80"
-                }
-                alt="Redacted Anonymized Evidence"
-                onError={() => setRedactedLoadError(true)}
-                className="absolute inset-0 h-full w-full object-cover filter contrast-105"
-              />
+            <div className="relative overflow-hidden rounded-2xl border border-border bg-muted/20 aspect-video select-none shadow-md">
+              {/* Image Loading Overlay */}
+              {!imageLoaded && (
+                <div className="absolute inset-0 z-20 bg-muted/80 backdrop-blur-xs flex flex-col items-center justify-center gap-2">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Loading media evidence...
+                  </span>
+                </div>
+              )}
+
+              {/* Right: Redacted Layer */}
+              {rawImageUrl && (
+                <img
+                  src={redactedImageUrl}
+                  alt="Redacted Anonymized Evidence"
+                  onLoad={() => setImageLoaded(true)}
+                  onError={() => {
+                    setRedactedLoadError(true);
+                    setImageLoaded(true);
+                  }}
+                  className={`absolute inset-0 h-full w-full object-cover filter contrast-105 transition-opacity duration-300 ${
+                    imageLoaded ? "opacity-100" : "opacity-0"
+                  }`}
+                />
+              )}
 
               {/* Left: Raw Frame Layer (Clipped by slider) */}
-              <div
-                style={{ width: `${sliderPosition}%` }}
-                className="absolute inset-0 overflow-hidden border-r-2 border-white/80 shadow-2xl"
-              >
-                <img
-                  src={
-                    grievance?.media?.originalSecureUrl ||
-                    "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1200&q=80"
-                  }
-                  alt="Original Raw Evidence"
-                  className="absolute inset-0 h-full w-full object-cover max-w-none"
-                  style={{ width: "100%", height: "100%" }}
-                />
-                <span className="absolute top-3 left-3 rounded-lg bg-rose-500/80 backdrop-blur-md px-2 py-0.5 text-[10px] font-bold text-white uppercase tracking-wider">
-                  Raw Bystander View
-                </span>
-              </div>
+              {rawImageUrl && (
+                <div
+                  style={{ width: `${sliderPosition}%` }}
+                  className={`absolute inset-0 overflow-hidden border-r-2 border-white/80 shadow-2xl transition-opacity duration-300 ${
+                    imageLoaded ? "opacity-100" : "opacity-0"
+                  }`}
+                >
+                  <img
+                    src={rawImageUrl}
+                    alt="Original Raw Evidence"
+                    className="absolute inset-0 h-full w-full object-cover max-w-none"
+                    style={{ width: "100%", height: "100%" }}
+                  />
+                  <span className="absolute top-3 left-3 rounded-lg bg-rose-500/80 backdrop-blur-md px-2 py-0.5 text-[10px] font-bold text-white uppercase tracking-wider">
+                    Raw Bystander View
+                  </span>
+                </div>
+              )}
 
               {/* Right Badge */}
               <span className="absolute top-3 right-3 rounded-lg bg-emerald-500/80 backdrop-blur-md px-2 py-0.5 text-[10px] font-bold text-white uppercase tracking-wider">
