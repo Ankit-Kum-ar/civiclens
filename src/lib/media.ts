@@ -22,7 +22,12 @@ export function getRedactedMediaUrl(
   const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
   if (!cloudName) return "";
 
-  const transformations = ["e_pixelate_faces", "f_auto", "q_auto"];
+  const transformations = [
+    "e_blur_faces:2000",
+    "e_pixelate_faces:25",
+    "f_auto",
+    "q_auto",
+  ];
 
   if (options?.coordinates) {
     const [lng, lat] = options.coordinates;
