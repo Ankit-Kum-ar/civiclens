@@ -15,12 +15,13 @@ import {
   ChevronRight,
 } from "lucide-react";
 
-export default function ReportConfirmationPage() {
+function ConfirmationContent() {
   const params = useParams();
   const grievanceId = params?.id as string;
 
   const [sliderPosition, setSliderPosition] = React.useState(50);
   const [grievance, setGrievance] = React.useState<IGrievance | null>(null);
+  const [redactedLoadError, setRedactedLoadError] = React.useState(false);
 
   React.useEffect(() => {
     async function fetchTicket() {
@@ -106,11 +107,12 @@ export default function ReportConfirmationPage() {
             {/* Right: Redacted Layer (Cloudinary e_pixelate_faces) */}
             <img
               src={
-                grievance?.media?.redactedSecureUrl ||
+                (!redactedLoadError && grievance?.media?.redactedSecureUrl) ||
                 grievance?.media?.originalSecureUrl ||
                 "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1200&q=80"
               }
               alt="Redacted Anonymized Evidence"
+              onError={() => setRedactedLoadError(true)}
               className="absolute inset-0 h-full w-full object-cover filter contrast-105"
             />
 
@@ -196,5 +198,19 @@ export default function ReportConfirmationPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function ReportConfirmationPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="min-h-screen bg-background flex items-center justify-center text-sm text-muted-foreground">
+          Loading report verification...
+        </div>
+      }
+    >
+      <ConfirmationContent />
+    </React.Suspense>
   );
 }

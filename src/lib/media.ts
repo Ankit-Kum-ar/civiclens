@@ -26,7 +26,7 @@ export function getRedactedMediaUrl(
 
   if (options?.coordinates) {
     const [lng, lat] = options.coordinates;
-    const badgeText = `GPS: ${lat.toFixed(4)}N, ${lng.toFixed(4)}E ${options.ward ? `| ${options.ward}` : ""}`;
+    const badgeText = `GPS ${lat.toFixed(4)}N ${lng.toFixed(4)}E${options.ward ? ` - ${options.ward.replace(/[,:]/g, "")}` : ""}`;
     const encodedBadge = encodeURIComponent(badgeText);
     transformations.push(`l_text:Arial_16_bold:${encodedBadge},g_south_east,x_16,y_16,co_rgb:ffffff,b_rgb:00000080`);
   }
