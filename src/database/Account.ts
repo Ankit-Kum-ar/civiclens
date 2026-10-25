@@ -1,7 +1,6 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 import {
   ACCOUNT_TYPES,
-  AUTH_PROVIDERS,
   type AccountType,
   type AuthProvider,
 } from "@/constants";

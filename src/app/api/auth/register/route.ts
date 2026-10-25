@@ -69,11 +69,12 @@ export async function POST(req: Request) {
       },
       { status: 201 }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const err = error as Error;
     return NextResponse.json(
       {
         success: false,
-        error: error?.message || "Internal server error during registration",
+        error: err?.message || "Internal server error during registration",
       },
       { status: 500 }
     );

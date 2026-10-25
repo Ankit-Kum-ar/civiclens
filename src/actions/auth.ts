@@ -85,10 +85,11 @@ export async function registerUserAction(
       message: "Account created successfully! You can now log in.",
       redirectTo: "/login?registered=true",
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const err = error as Error;
     return {
       success: false,
-      message: error?.message || "An unexpected error occurred during registration.",
+      message: err?.message || "An unexpected error occurred during registration.",
     };
   }
 }

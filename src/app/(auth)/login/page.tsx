@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { z } from "zod";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { AuthHeroBanner } from "@/components/auth/AuthHeroBanner";
 import { SocialAuthButtons } from "@/components/auth/SocialAuthButtons";

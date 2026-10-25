@@ -37,15 +37,23 @@ async function SessionCard() {
           <p className="text-xs text-muted-foreground">{session.user.email}</p>
         </div>
         <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-          {(session.user as any).role || "CITIZEN"}
+          {(session.user as { role?: string }).role || "CITIZEN"}
         </span>
       </div>
 
-      <form action={logoutAction} className="pt-4">
-        <Button type="submit" variant="destructive" className="w-full rounded-xl">
-          Sign Out
-        </Button>
-      </form>
+      <div className="pt-3 flex flex-col gap-2.5">
+        <Link
+          href="/report"
+          className="w-full inline-flex items-center justify-center rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm"
+        >
+          Report Street Hazard Now
+        </Link>
+        <form action={logoutAction}>
+          <Button type="submit" variant="destructive" className="w-full rounded-xl">
+            Sign Out
+          </Button>
+        </form>
+      </div>
     </div>
   );
 }

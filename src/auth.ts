@@ -84,7 +84,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           existingUser.role = assignedRole;
           await existingUser.save();
         }
-        (user as any).role = existingUser.role;
+        user.role = existingUser.role;
 
         // Persist/Update OAuth Account in MongoDB
         await Account.findOneAndUpdate(
@@ -112,7 +112,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.role = (user as any).role || USER_ROLES.CITIZEN;
+        token.role = user.role || USER_ROLES.CITIZEN;
       }
       if (token.email) {
         await connectDB();
@@ -127,7 +127,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async session({ session, token }) {
       if (session.user) {
         session.user.id = (token.id as string) || (token.sub as string);
-        (session.user as any).role = token.role || USER_ROLES.CITIZEN;
+        session.user.role = token.role || USER_ROLES.CITIZEN;
       }
       return session;
     },

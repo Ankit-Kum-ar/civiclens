@@ -120,6 +120,28 @@ declare global {
   }
 }
 
+declare module "next-auth" {
+  interface User {
+    role?: UserRole;
+  }
+  interface Session {
+    user: {
+      id?: string;
+      role?: UserRole;
+      name?: string | null;
+      email?: string | null;
+      image?: string | null;
+    };
+  }
+}
+
+declare module "@auth/core/jwt" {
+  interface JWT {
+    id?: string;
+    role?: UserRole;
+  }
+}
+
 export type {
   UserRole,
   AccountType,
@@ -130,3 +152,4 @@ export type {
   MediaResourceType,
   ActivityAction,
 };
+
