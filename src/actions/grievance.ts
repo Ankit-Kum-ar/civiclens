@@ -131,3 +131,189 @@ export async function createGrievanceAction(
     };
   }
 }
+
+/**
+ * Toggles a citizen's upvote/endorsement on an existing grievance.
+ * Used for duplicate prevention and community prioritization.
+ */
+export async function toggleUpvoteGrievanceAction(grievanceId: string) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return { success: false, message: "Authentication required to upvote." };
+    }
+
+    await connectDB();
+    const userId = new mongoose.Types.ObjectId(session.user.id);
+    const gId = new mongoose.Types.ObjectId(grievanceId);
+
+    const grievance = await Grievance.findById(gId);
+    if (!grievance) {
+      return { success: false, message: "Grievance ticket not found." };
+    }
+
+    const alreadyUpvoted = grievance.upvotedBy.some((id: mongoose.Types.ObjectId) =>
+      id.equals(userId)
+    );
+
+    if (alreadyUpvoted) {
+      grievance.upvotedBy = grievance.upvotedBy.filter(
+        (id: mongoose.Types.ObjectId) => !id.equals(userId)
+      );
+      grievance.upvotesCount = Math.max(0, grievance.upvotesCount - 1);
+      await grievance.save();
+
+      // Deduct reputation points
+      await User.findByIdAndUpdate(userId, { $inc: { reputationPoints: -2 } });
+
+      revalidatePath("/explore");
+      revalidatePath("/my-reports");
+
+      return {
+        success: true,
+        upvoted: false,
+        upvotesCount: grievance.upvotesCount,
+      };
+    } else {
+      grievance.upvotedBy.push(userId);
+      grievance.upvotesCount += 1;
+      await grievance.save();
+
+      // Reward community endorsement
+      await User.findByIdAndUpdate(userId, { $inc: { reputationPoints: 2 } });
+
+      // Log endorsement activity
+      await ActivityLog.create({
+        grievanceId: gId,
+        performedBy: userId,
+        action: ACTIVITY_ACTIONS.COMMENTED,
+        note: "Citizen endorsed this community report.",
+      });
+
+      revalidatePath("/explore");
+      revalidatePath("/my-reports");
+
+      return {
+        success: true,
+        upvoted: true,
+        upvotesCount: grievance.upvotesCount,
+      };
+    }
+  } catch (error: unknown) {
+    const err = error as Error;
+    return {
+      success: false,
+      message: err.message || "Failed to update upvote status.",
+    };
+  }
+}
+
+export interface GrievanceFeedFilters {
+  category?: string;
+  severity?: string;
+  status?: string;
+  ward?: string;
+  sortBy?: "upvotes" | "latest";
+}
+
+/**
+ * Retrieves the public civic feed of reported grievances.
+ */
+export async function getGrievancesFeedAction(filters?: GrievanceFeedFilters) {
+  try {
+    await connectDB();
+
+    const query: Record<string, unknown> = {};
+
+    if (filters?.category && filters.category !== "ALL") {
+      query.category = filters.category;
+    }
+    if (filters?.severity && filters.severity !== "ALL") {
+      query.severity = filters.severity;
+    }
+    if (filters?.status && filters.status !== "ALL") {
+      query.status = filters.status;
+    }
+    if (filters?.ward && filters.ward !== "ALL") {
+      query["location.ward"] = filters.ward;
+    }
+
+    const sortOptions: Record<string, 1 | -1> =
+      filters?.sortBy === "upvotes"
+        ? { upvotesCount: -1, createdAt: -1 }
+        : { createdAt: -1 };
+
+    const items = await Grievance.find(query)
+      .sort(sortOptions)
+      .limit(60)
+      .populate("reportedBy", "name image")
+      .lean();
+
+    const serialized = items.map((doc) => ({
+      ...doc,
+      _id: String(doc._id),
+      reportedBy: doc.reportedBy
+        ? {
+            _id: String((doc.reportedBy as { _id?: unknown })._id),
+            name: (doc.reportedBy as { name?: string }).name || "Citizen",
+            image: (doc.reportedBy as { image?: string }).image || "",
+          }
+        : null,
+      upvotedBy: Array.isArray(doc.upvotedBy)
+        ? doc.upvotedBy.map((id) => String(id))
+        : [],
+      createdAt: doc.createdAt ? new Date(doc.createdAt).toISOString() : new Date().toISOString(),
+      updatedAt: doc.updatedAt ? new Date(doc.updatedAt).toISOString() : new Date().toISOString(),
+    }));
+
+    return { success: true, grievances: serialized };
+  } catch (error: unknown) {
+    const err = error as Error;
+    return { success: false, grievances: [], error: err.message };
+  }
+}
+
+/**
+ * Retrieves grievances filed or endorsed by the current authenticated citizen.
+ */
+export async function getUserGrievancesAction() {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return { success: false, message: "Authentication required." };
+    }
+
+    await connectDB();
+    const userId = new mongoose.Types.ObjectId(session.user.id);
+
+    const [submitted, endorsed, userDoc] = await Promise.all([
+      Grievance.find({ reportedBy: userId }).sort({ createdAt: -1 }).lean(),
+      Grievance.find({ upvotedBy: userId, reportedBy: { $ne: userId } })
+        .sort({ createdAt: -1 })
+        .lean(),
+      User.findById(userId).select("reputationPoints role ward").lean(),
+    ]);
+
+    const serialize = (arr: typeof submitted) =>
+      arr.map((doc) => ({
+        ...doc,
+        _id: String(doc._id),
+        reportedBy: String(doc.reportedBy),
+        upvotedBy: Array.isArray(doc.upvotedBy) ? doc.upvotedBy.map((id) => String(id)) : [],
+        createdAt: doc.createdAt ? new Date(doc.createdAt).toISOString() : new Date().toISOString(),
+        updatedAt: doc.updatedAt ? new Date(doc.updatedAt).toISOString() : new Date().toISOString(),
+      }));
+
+    return {
+      success: true,
+      submitted: serialize(submitted),
+      endorsed: serialize(endorsed),
+      reputationPoints: userDoc?.reputationPoints || 0,
+      userRole: userDoc?.role || "CITIZEN",
+    };
+  } catch (error: unknown) {
+    const err = error as Error;
+    return { success: false, message: err.message };
+  }
+}
+

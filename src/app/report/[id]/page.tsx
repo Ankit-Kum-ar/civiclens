@@ -13,7 +13,9 @@ import {
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
+  Video,
 } from "lucide-react";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 function ConfirmationContent() {
   const params = useParams();
@@ -52,9 +54,12 @@ function ConfirmationContent() {
             <ArrowLeft className="h-4 w-4" />
             <span>Back to Home</span>
           </Link>
-          <span className="font-mono text-xs font-bold text-primary">
-            Ticket #{grievanceId?.slice(-6)?.toUpperCase() || "CL-8921"}
-          </span>
+          <div className="flex items-center gap-2.5">
+            <span className="font-mono text-xs font-bold text-[#4880FF]">
+              Ticket #{grievanceId?.slice(-6)?.toUpperCase() || "CL-8921"}
+            </span>
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 
@@ -91,77 +96,110 @@ function ConfirmationContent() {
           </div>
         </div>
 
-        {/* Interactive Before / After Privacy Slider */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              <Eye className="h-4 w-4 text-primary" />
-              Privacy Verification (Before & After Slider)
-            </label>
-            <span className="text-[11px] text-muted-foreground">
-              Drag slider to inspect face pixelation
-            </span>
-          </div>
-
-          <div className="relative overflow-hidden rounded-2xl border border-border bg-black aspect-video select-none shadow-md">
-            {/* Right: Redacted Layer (Cloudinary e_pixelate_faces) */}
-            <img
-              src={
-                (!redactedLoadError && grievance?.media?.redactedSecureUrl) ||
-                grievance?.media?.originalSecureUrl ||
-                "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1200&q=80"
-              }
-              alt="Redacted Anonymized Evidence"
-              onError={() => setRedactedLoadError(true)}
-              className="absolute inset-0 h-full w-full object-cover filter contrast-105"
-            />
-
-            {/* Left: Raw Frame Layer (Clipped by slider) */}
-            <div
-              style={{ width: `${sliderPosition}%` }}
-              className="absolute inset-0 overflow-hidden border-r-2 border-white/80 shadow-2xl"
-            >
-              <img
-                src={
-                  grievance?.media?.originalSecureUrl ||
-                  "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1200&q=80"
-                }
-                alt="Original Raw Evidence"
-                className="absolute inset-0 h-full w-full object-cover max-w-none"
-                style={{ width: "100%", height: "100%" }}
-              />
-              <span className="absolute top-3 left-3 rounded-lg bg-rose-500/80 backdrop-blur-md px-2 py-0.5 text-[10px] font-bold text-white uppercase tracking-wider">
-                Raw Bystander View
+        {/* Visual Evidence: Video Player if video, or Before/After Privacy Slider if photo */}
+        {grievance?.media?.resourceType === "video" ||
+        grievance?.media?.originalSecureUrl?.endsWith(".mp4") ||
+        grievance?.media?.originalSecureUrl?.endsWith(".webm") ? (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <Video className="h-4 w-4 text-[#4880FF]" />
+                Civic Video Evidence
+              </label>
+              <span className="text-[11px] text-muted-foreground">
+                MP4 / WebM Anonymized Stream
               </span>
             </div>
 
-            {/* Right Badge */}
-            <span className="absolute top-3 right-3 rounded-lg bg-emerald-500/80 backdrop-blur-md px-2 py-0.5 text-[10px] font-bold text-white uppercase tracking-wider">
-              Protected Civic View
-            </span>
-
-            {/* Slider Handle */}
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={sliderPosition}
-              onChange={(e) => setSliderPosition(Number(e.target.value))}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize z-10"
-            />
-
-            {/* Handle Thumb Marker */}
-            <div
-              style={{ left: `${sliderPosition}%` }}
-              className="pointer-events-none absolute top-1/2 -translate-y-1/2 -translate-x-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-white text-black shadow-2xl border border-border"
-            >
-              <div className="flex items-center -space-x-1 text-xs font-bold">
-                <ChevronLeft className="h-3 w-3" />
-                <ChevronRight className="h-3 w-3" />
+            <div className="relative overflow-hidden rounded-2xl border border-border bg-black aspect-video shadow-md flex items-center justify-center">
+              <video
+                src={
+                  grievance?.media?.redactedSecureUrl ||
+                  grievance?.media?.originalSecureUrl
+                }
+                controls
+                preload="metadata"
+                playsInline
+                className="w-full h-full object-contain"
+              />
+              <div className="absolute top-3 right-3 rounded-lg bg-[#00B69B]/90 backdrop-blur-md px-2.5 py-1 text-[10px] font-bold text-white uppercase tracking-wider flex items-center gap-1 shadow-xs pointer-events-none">
+                <ShieldCheck className="h-3 w-3" />
+                <span>Protected Civic View</span>
               </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <Eye className="h-4 w-4 text-primary" />
+                Privacy Verification (Before & After Slider)
+              </label>
+              <span className="text-[11px] text-muted-foreground">
+                Drag slider to inspect face pixelation
+              </span>
+            </div>
+
+            <div className="relative overflow-hidden rounded-2xl border border-border bg-black aspect-video select-none shadow-md">
+              {/* Right: Redacted Layer (Cloudinary e_pixelate_faces) */}
+              <img
+                src={
+                  (!redactedLoadError && grievance?.media?.redactedSecureUrl) ||
+                  grievance?.media?.originalSecureUrl ||
+                  "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1200&q=80"
+                }
+                alt="Redacted Anonymized Evidence"
+                onError={() => setRedactedLoadError(true)}
+                className="absolute inset-0 h-full w-full object-cover filter contrast-105"
+              />
+
+              {/* Left: Raw Frame Layer (Clipped by slider) */}
+              <div
+                style={{ width: `${sliderPosition}%` }}
+                className="absolute inset-0 overflow-hidden border-r-2 border-white/80 shadow-2xl"
+              >
+                <img
+                  src={
+                    grievance?.media?.originalSecureUrl ||
+                    "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1200&q=80"
+                  }
+                  alt="Original Raw Evidence"
+                  className="absolute inset-0 h-full w-full object-cover max-w-none"
+                  style={{ width: "100%", height: "100%" }}
+                />
+                <span className="absolute top-3 left-3 rounded-lg bg-rose-500/80 backdrop-blur-md px-2 py-0.5 text-[10px] font-bold text-white uppercase tracking-wider">
+                  Raw Bystander View
+                </span>
+              </div>
+
+              {/* Right Badge */}
+              <span className="absolute top-3 right-3 rounded-lg bg-emerald-500/80 backdrop-blur-md px-2 py-0.5 text-[10px] font-bold text-white uppercase tracking-wider">
+                Protected Civic View
+              </span>
+
+              {/* Slider Handle */}
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={sliderPosition}
+                onChange={(e) => setSliderPosition(Number(e.target.value))}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize z-10"
+              />
+
+              {/* Handle Thumb Marker */}
+              <div
+                style={{ left: `${sliderPosition}%` }}
+                className="pointer-events-none absolute top-1/2 -translate-y-1/2 -translate-x-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-white text-black shadow-2xl border border-border"
+              >
+                <div className="flex items-center -space-x-1 text-xs font-bold">
+                  <ChevronLeft className="h-3 w-3" />
+                  <ChevronRight className="h-3 w-3" />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* AI Triage Card */}
         <div className="rounded-2xl border border-border bg-card p-5 space-y-3 shadow-xs">
