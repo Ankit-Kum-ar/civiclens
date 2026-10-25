@@ -11,32 +11,42 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 
-const loginSchema = z.object({
-  email: z.string().trim().email("Please enter a valid email address"),
-  password: z.string().min(1, "Password is required"),
-  rememberMe: z.boolean().default(false),
-});
+import { useRouter, useSearchParams } from "next/navigation";
+import { signIn } from "next-auth/react";
+import { toast } from "sonner";
+import { loginSchema, type LoginInput } from "@/lib/validations/auth";
 
-type LoginFormData = z.infer<typeof loginSchema>;
-type FormErrors = Partial<Record<keyof LoginFormData, string>>;
+type FormErrors = Partial<Record<keyof LoginInput, string>>;
 
-export default function LoginPage() {
-  const [formData, setFormData] = React.useState<LoginFormData>({
+function LoginFormContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const registered = searchParams.get("registered");
+
+  const [formData, setFormData] = React.useState<LoginInput>({
     email: "",
     password: "",
     rememberMe: false,
   });
 
   const [errors, setErrors] = React.useState<FormErrors>({});
+  const [generalError, setGeneralError] = React.useState<string | null>(null);
   const [showPassword, setShowPassword] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+
+  React.useEffect(() => {
+    if (registered) {
+      toast.success("Account created successfully! Please sign in.");
+    }
+  }, [registered]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-    if (errors[name as keyof LoginFormData]) {
+    if (errors[name as keyof LoginInput]) {
       setErrors((prev) => ({ ...prev, [name]: undefined }));
     }
+    if (generalError) setGeneralError(null);
   };
 
   const handleCheckboxChange = (checked: boolean) => {
@@ -50,7 +60,7 @@ export default function LoginPage() {
     if (!result.success) {
       const fieldErrors: FormErrors = {};
       for (const issue of result.error.issues) {
-        const fieldName = issue.path[0] as keyof LoginFormData;
+        const fieldName = issue.path[0] as keyof LoginInput;
         if (!fieldErrors[fieldName]) {
           fieldErrors[fieldName] = issue.message;
         }
@@ -60,11 +70,27 @@ export default function LoginPage() {
     }
 
     setErrors({});
+    setGeneralError(null);
     setIsSubmitting(true);
 
     try {
-      // Simulate authentication request
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const res = await signIn("credentials", {
+        email: formData.email,
+        password: formData.password,
+        redirect: false,
+      });
+
+      if (res?.error) {
+        setGeneralError("Invalid email or password. Please try again.");
+        toast.error("Sign-in failed. Please check your credentials.");
+        return;
+      }
+
+      toast.success("Signed in successfully!");
+      router.push("/");
+      router.refresh();
+    } catch {
+      setGeneralError("An unexpected error occurred. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -99,6 +125,12 @@ export default function LoginPage() {
 
           {/* Login Form */}
           <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+            {generalError && (
+              <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                {generalError}
+              </div>
+            )}
+
             {/* Email Address */}
             <div className="space-y-1.5">
               <Label htmlFor="email" className="sr-only">
@@ -219,5 +251,19 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="flex min-h-[50vh] w-full items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      }
+    >
+      <LoginFormContent />
+    </React.Suspense>
   );
 }

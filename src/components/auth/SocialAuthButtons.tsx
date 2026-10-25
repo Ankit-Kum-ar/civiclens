@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { signIn } from "next-auth/react";
 
 interface SocialAuthButtonsProps {
   isLoading?: boolean;
@@ -11,6 +12,14 @@ export function SocialAuthButtons({
   isLoading = false,
   onGoogleSignIn,
 }: SocialAuthButtonsProps) {
+  const handleGoogleClick = () => {
+    if (onGoogleSignIn) {
+      onGoogleSignIn();
+    } else {
+      signIn("google", { callbackUrl: "/" });
+    }
+  };
+
   return (
     <div className="w-full">
       {/* Google Button with High-Contrast Border in Light and Dark Mode */}
@@ -18,8 +27,8 @@ export function SocialAuthButtons({
         type="button"
         variant="outline"
         disabled={isLoading}
-        onClick={onGoogleSignIn}
-        className="w-full h-11 rounded-xl border border-border/80 dark:border-border/80 dark:border-slate-700 bg-card/50 hover:bg-muted font-medium text-foreground transition-all duration-150 gap-2.5 shadow-sm"
+        onClick={handleGoogleClick}
+        className="w-full h-11 rounded-xl border border-border/80 dark:border-border/80 dark:border-slate-700 bg-card/50 hover:bg-muted font-medium text-foreground transition-all duration-150 gap-2.5 shadow-sm cursor-pointer"
       >
         <svg
           className="h-4 w-4 shrink-0"

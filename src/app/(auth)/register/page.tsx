@@ -11,21 +11,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 
-const registerSchema = z.object({
-  firstName: z.string().trim().min(1, "First name is required"),
-  lastName: z.string().trim().min(1, "Last name is required"),
-  email: z.string().trim().email("Please enter a valid email address"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
-  agreeTerms: z
-    .boolean()
-    .refine((val) => val === true, "You must agree to the Terms & Conditions"),
-});
+import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
+import { toast } from "sonner";
+import { registerSchema, type RegisterInput } from "@/lib/validations/auth";
 
-type RegisterFormData = z.infer<typeof registerSchema>;
-type FormErrors = Partial<Record<keyof RegisterFormData, string>>;
+type FormErrors = Partial<Record<keyof RegisterInput, string>>;
 
 export default function RegisterPage() {
-  const [formData, setFormData] = React.useState<RegisterFormData>({
+  const router = useRouter();
+
+  const [formData, setFormData] = React.useState<RegisterInput>({
     firstName: "",
     lastName: "",
     email: "",
@@ -34,15 +30,17 @@ export default function RegisterPage() {
   });
 
   const [errors, setErrors] = React.useState<FormErrors>({});
+  const [generalError, setGeneralError] = React.useState<string | null>(null);
   const [showPassword, setShowPassword] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-    if (errors[name as keyof RegisterFormData]) {
+    if (errors[name as keyof RegisterInput]) {
       setErrors((prev) => ({ ...prev, [name]: undefined }));
     }
+    if (generalError) setGeneralError(null);
   };
 
   const handleCheckboxChange = (checked: boolean) => {
@@ -59,7 +57,7 @@ export default function RegisterPage() {
     if (!result.success) {
       const fieldErrors: FormErrors = {};
       for (const issue of result.error.issues) {
-        const fieldName = issue.path[0] as keyof RegisterFormData;
+        const fieldName = issue.path[0] as keyof RegisterInput;
         if (!fieldErrors[fieldName]) {
           fieldErrors[fieldName] = issue.message;
         }
@@ -69,11 +67,43 @@ export default function RegisterPage() {
     }
 
     setErrors({});
+    setGeneralError(null);
     setIsSubmitting(true);
 
     try {
-      // Simulation or NextAuth registration submission
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        const msg = data.error || "Failed to create account. Please try again.";
+        setGeneralError(msg);
+        toast.error(msg);
+        return;
+      }
+
+      toast.success("Account created successfully! Signing you in...");
+
+      // Automatically sign in the user with the registered credentials
+      const signInRes = await signIn("credentials", {
+        email: formData.email,
+        password: formData.password,
+        redirect: false,
+      });
+
+      if (signInRes?.error) {
+        // Fallback to login page if session handshake fails
+        router.push("/login?registered=true");
+      } else {
+        router.push("/");
+        router.refresh();
+      }
+    } catch {
+      setGeneralError("An unexpected error occurred. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -108,6 +138,12 @@ export default function RegisterPage() {
 
           {/* Registration Form */}
           <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+            {generalError && (
+              <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                {generalError}
+              </div>
+            )}
+
             {/* First & Last Name Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
