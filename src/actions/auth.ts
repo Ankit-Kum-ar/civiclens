@@ -162,5 +162,7 @@ export async function signInWithGoogleAction(): Promise<void> {
  * Server action to log out user.
  */
 export async function logoutAction(): Promise<void> {
-  await signOut({ redirectTo: "/login" });
+  await signOut({ redirect: false });
+  const { redirect } = await import("next/navigation");
+  redirect("/login");
 }
