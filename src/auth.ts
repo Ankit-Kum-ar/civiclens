@@ -7,10 +7,50 @@ import { User } from "@/database/User";
 import { Account } from "@/database/Account";
 import { USER_ROLES, ACCOUNT_TYPES } from "@/constants";
 
+/**
+ * Cross-origin Expo / mobile clients (e.g. http://localhost:8081) need
+ * SameSite=None; Secure so Auth.js CSRF + session cookies are accepted on
+ * credentialed fetches to the Vercel API host.
+ */
+const useCrossOriginCookies = process.env.AUTH_CROSS_ORIGIN_COOKIES !== "false";
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  trustHost: true,
   session: {
     strategy: "jwt",
   },
+  cookies: useCrossOriginCookies
+    ? {
+        sessionToken: {
+          name: "__Secure-authjs.session-token",
+          options: {
+            httpOnly: true,
+            sameSite: "none",
+            path: "/",
+            secure: true,
+          },
+        },
+        callbackUrl: {
+          name: "__Secure-authjs.callback-url",
+          options: {
+            httpOnly: true,
+            sameSite: "none",
+            path: "/",
+            secure: true,
+          },
+        },
+        csrfToken: {
+          // __Secure- (not __Host-) so cross-origin Expo web can receive the cookie
+          name: "__Secure-authjs.csrf-token",
+          options: {
+            httpOnly: true,
+            sameSite: "none",
+            path: "/",
+            secure: true,
+          },
+        },
+      }
+    : undefined,
   providers: [
     // 1. Google OAuth Provider (Active and ready with your .env credentials)
     Google({

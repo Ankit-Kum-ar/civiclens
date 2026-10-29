@@ -1,0 +1,69 @@
+{
+  "expo": {
+    "name": "CivicLens",
+    "slug": "civiclens-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "civiclens",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#4880FF"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.civiclens.mobile",
+      "infoPlist": {
+        "NSCameraUsageDescription": "CivicLens needs camera access to photograph street hazards.",
+        "NSPhotoLibraryUsageDescription": "CivicLens needs photo library access to attach hazard evidence.",
+        "NSMicrophoneUsageDescription": "CivicLens needs microphone access for voice hazard notes.",
+        "NSLocationWhenInUseUsageDescription": "CivicLens needs your location to pin hazard reports on the civic map."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#4880FF",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "package": "com.civiclens.mobile",
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "READ_MEDIA_IMAGES",
+        "READ_MEDIA_VIDEO"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow CivicLens to access your photos for hazard evidence.",
+          "cameraPermission": "Allow CivicLens to use your camera for hazard evidence."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow CivicLens to use your location to pin hazard reports."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
