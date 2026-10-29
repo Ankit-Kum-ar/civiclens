@@ -2,39 +2,38 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 /**
- * CORS for Expo / mobile clients calling /api/* from another origin
- * (e.g. Expo web at http://localhost:8081 → Vercel API).
+ * Zero-env CORS for Expo → /api/* (no CORS_ORIGINS to configure).
+ * Allowlist only: known app hosts + localhost/LAN Expo ports.
  */
-const STATIC_ALLOWED = [
+const STATIC_ALLOWED = new Set([
   "http://localhost:8081",
   "http://127.0.0.1:8081",
+  "http://localhost:19006",
+  "http://127.0.0.1:19006",
   "http://localhost:3000",
   "http://127.0.0.1:3000",
   "https://civiclens-seven-taupe.vercel.app",
   "https://civiclens.vercel.app",
-];
+]);
 
-function allowedOrigins(): string[] {
-  const fromEnv = (process.env.CORS_ORIGINS || "")
-    .split(",")
-    .map((o) => o.trim())
-    .filter(Boolean);
-  return [...STATIC_ALLOWED, ...fromEnv];
+const EXPO_PORTS = new Set(["8081", "19006", "3000", ""]);
+
+function isPrivateLanHost(hostname: string): boolean {
+  return (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    /^192\.168\.\d{1,3}\.\d{1,3}$/.test(hostname) ||
+    /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)
+  );
 }
 
 function isAllowedOrigin(origin: string | null): origin is string {
   if (!origin) return false;
-  if (allowedOrigins().includes(origin)) return true;
-  // Expo / LAN device testing: http://192.168.x.x:8081
+  if (STATIC_ALLOWED.has(origin)) return true;
   try {
     const url = new URL(origin);
-    if (
-      (url.hostname === "localhost" ||
-        url.hostname === "127.0.0.1" ||
-        /^192\.168\.\d{1,3}\.\d{1,3}$/.test(url.hostname) ||
-        /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(url.hostname)) &&
-      (url.port === "8081" || url.port === "19006" || url.port === "3000" || url.port === "")
-    ) {
+    // Expo / device testing only over private LAN + known ports (not open internet)
+    if (url.protocol === "http:" && isPrivateLanHost(url.hostname) && EXPO_PORTS.has(url.port)) {
       return true;
     }
   } catch {

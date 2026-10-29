@@ -27,6 +27,23 @@ Same DashStack colors as web (`src/app/globals.css`):
 - Destructive `#EF3826`
 - Light bg `#F5F6FA` / Dark bg `#1B2431`
 
+## Zero-env flow (default)
+
+No new Vercel env vars. No `mobile/.env` required.
+
+1. Deploy/push the Next.js app (CORS middleware + production Auth cookies activate automatically on Vercel).
+2. `cd mobile && npm install && npx expo start`
+3. Open Expo Go / web — API already points at `https://civiclens-seven-taupe.vercel.app`.
+4. Sign in with demo credentials below (live Auth.js session cookies).
+
+Local web (`next dev` on :3000) keeps normal Lax cookies so browser login stays safe on HTTP. Cross-origin Expo cookies (`SameSite=None`) turn on only in production/Vercel.
+
+Optional override only if you must hit a different API host:
+
+```
+EXPO_PUBLIC_API_URL=https://your-api-host.vercel.app
+```
+
 ## Run
 
 ```bash
@@ -36,16 +53,6 @@ npx expo start
 ```
 
 Then press `i` (iOS simulator), `a` (Android), or scan the QR with Expo Go.
-
-### Point at another backend
-
-Edit `mobile/.env`:
-
-```
-EXPO_PUBLIC_API_URL=https://civiclens-seven-taupe.vercel.app
-```
-
-For a local Next.js server from a physical device, use your LAN IP (see `allowedDevOrigins` in root `next.config.ts`), e.g. `http://192.168.1.7:3000`.
 
 ## Demo logins
 

@@ -8,11 +8,15 @@ import { Account } from "@/database/Account";
 import { USER_ROLES, ACCOUNT_TYPES } from "@/constants";
 
 /**
- * Cross-origin Expo / mobile clients (e.g. http://localhost:8081) need
- * SameSite=None; Secure so Auth.js CSRF + session cookies are accepted on
- * credentialed fetches to the Vercel API host.
+ * Zero-env cross-origin auth for Expo → deployed API.
+ *
+ * On Vercel / production HTTPS: SameSite=None; Secure so credentialed
+ * fetches from Expo web (localhost:8081) can receive Auth.js cookies.
+ * Local `next dev` (HTTP): keep Auth.js defaults (Lax) so the web app
+ * login on http://localhost:3000 keeps working — no new env vars needed.
  */
-const useCrossOriginCookies = process.env.AUTH_CROSS_ORIGIN_COOKIES !== "false";
+const useCrossOriginCookies =
+  process.env.VERCEL === "1" || process.env.NODE_ENV === "production";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   trustHost: true,
