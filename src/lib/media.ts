@@ -19,7 +19,12 @@ export function sanitizeClientRegions(input: unknown): DetectedRegion[] {
     const b = r?.box_2d;
     if (!Array.isArray(b) || b.length !== 4 || !b.every(Number.isFinite)) return [];
     const [y0, x0, y1, x1] = b.map((n: number) => Math.min(1000, Math.max(0, Math.round(n))));
-    return y1 > y0 && x1 > x0 ? [{ type: "face", box_2d: [y0, x0, y1, x1] } as DetectedRegion] : [];
+    const width = x1 - x0;
+    const height = y1 - y0;
+    // Reject inverted boxes or boxes occupying more than 30% of image dimensions (false-positive road puddles)
+    if (y1 <= y0 || x1 <= x0) return [];
+    if (width > 300 || height > 300) return [];
+    return [{ type: "face", box_2d: [y0, x0, y1, x1] } as DetectedRegion];
   });
 }
 

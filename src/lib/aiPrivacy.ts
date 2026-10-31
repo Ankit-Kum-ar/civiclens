@@ -15,15 +15,17 @@ export interface DetectedRegion {
  */
 export async function detectPrivacyRegions(imageUrl: string): Promise<DetectedRegion[]> {
   const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) return [];
+  if (!apiKey) {
+    console.warn("[OpenRouter AI] No OPENROUTER_API_KEY found in environment.");
+    return [];
+  }
 
   const prompt =
     'Locate tight, precise bounding boxes for all sensitive privacy data to redact: ' +
-    '1) Human heads/faces (from forehead to chin, ear to ear - only head/face, NOT upper torso or body), ' +
-    '2) ALL vehicle registration/license plates (the entire rectangular plate and any vehicle number characters visible on cars, bikes, trucks, autos), ' +
+    '1) ALL vehicle registration/license plates (front or rear plates on cars, motorcycles, scooters, trucks, buses, autos). Cover the entire rectangular plate and vehicle numbers. ' +
+    '2) Human heads/faces (pedestrians, riders, drivers, bystanders). ' +
     '3) Street house address numbers and door numbers. ' +
-    'CRITICAL: Ensure the entire license plate area with its characters is strictly covered in the box. ' +
-    'Return JSON format: {"regions": [{"type": "face"|"license_plate"|"house_number", "box_2d": [ymin, xmin, ymax, xmax]}]} ' +
+    'Return strictly JSON: {"regions": [{"type": "face"|"license_plate"|"house_number", "box_2d": [ymin, xmin, ymax, xmax]}]} ' +
     'where coordinates are normalized integers from 0 to 1000.';
 
   try {
@@ -37,7 +39,7 @@ export async function detectPrivacyRegions(imageUrl: string): Promise<DetectedRe
       },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
-        max_tokens: 4000,
+        max_tokens: 2000,
         messages: [
           {
             role: "user",
@@ -53,13 +55,16 @@ export async function detectPrivacyRegions(imageUrl: string): Promise<DetectedRe
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error("[OpenRouter AI] Request failed:", response.status, errText);
+      console.error(`[OpenRouter AI] Request failed with HTTP ${response.status}:`, errText);
       return [];
     }
 
     const data = await response.json();
     let content = data.choices?.[0]?.message?.content;
-    if (!content) return [];
+    if (!content) {
+      console.warn("[OpenRouter AI] Empty choices content received.");
+      return [];
+    }
 
     // Strip markdown code fences if model enclosed JSON in ```json ... ```
     content = content.trim();

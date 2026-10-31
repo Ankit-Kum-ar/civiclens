@@ -56,8 +56,8 @@ export function preloadFaceDetector(): Promise<FaceDetector> {
       return FaceDetector.createFromOptions(vision, {
         baseOptions: { modelAssetPath: MODEL_PATH, delegate: "CPU" },
         runningMode: "IMAGE",
-        minDetectionConfidence: 0.3,
-        minSuppressionThreshold: 0.3,
+        minDetectionConfidence: 0.55,
+        minSuppressionThreshold: 0.55,
       });
     }).catch((err) => {
       detectorPromise = null; // allow retry
@@ -147,7 +147,20 @@ export async function detectFacesInBrowser(file: File): Promise<DetectedRegion[]
     );
 
     const clamp = (v: number) => Math.min(1000, Math.max(0, Math.round(v)));
-    const finalBoxes = nms(found).map((b) => {
+    
+    // Filter false positives:
+    // 1. Minimum confidence score of 0.55
+    // 2. Maximum dimension: A human face in hazard photography does not exceed 30% of image width or height
+    // 3. Aspect ratio: Human faces have an aspect ratio (height / width) between 0.65 and 1.8. Puddles are typically flat/wide or irregular.
+    const validBoxes = found.filter((b) => {
+      if (b.score < 0.55) return false;
+      if (b.w > W * 0.30 || b.h > H * 0.30) return false;
+      const aspect = b.h / b.w;
+      if (aspect < 0.65 || aspect > 1.85) return false;
+      return true;
+    });
+
+    const finalBoxes = nms(validBoxes).map((b) => {
       const px = b.w * PAD,
         py = b.h * PAD;
       return {
@@ -161,7 +174,7 @@ export async function detectFacesInBrowser(file: File): Promise<DetectedRegion[]
       } as DetectedRegion; // [ymin, xmin, ymax, xmax] in 0-1000
     });
 
-    console.log(`[MediaPipe Tiled Client] Successfully detected ${finalBoxes.length} faces in browser`);
+    console.log(`[MediaPipe Tiled Client] Filtered ${found.length} detections down to ${finalBoxes.length} verified face regions`);
     return finalBoxes;
   } catch (err) {
     // warn, not error: the dev overlay only pops for console.error
