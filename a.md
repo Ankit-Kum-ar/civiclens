@@ -9029,3 +9029,2093 @@ Manages everything related to actual communication:
 **Core System Design Principle:**
 
 Separate application management from media transmission. Scale the Control Plane and Media Plane independently because they have very different workloads, resource requirements and latency constraints.
+
+# Uber – System Design (High-Level Design)
+
+## 1. Problem Statement
+
+Design a scalable ride-hailing platform similar to Uber that connects passengers with nearby drivers.
+
+The system should:
+- Allow passengers to request rides.
+- Find nearby available drivers.
+- Match passengers with suitable drivers.
+- Calculate estimated prices and arrival times (ETA).
+- Allow drivers to accept or reject ride requests.
+- Track driver and passenger locations in real time.
+- Handle payments and trip history.
+- Support dynamic pricing during high demand.
+- Scale across multiple geographical regions.
+
+---
+
+# 2. Functional Requirements (FR)
+
+## Customer / Passenger
+
+1. Request a ride by providing source and destination.
+2. Select ride type (Uber Go, Premier, XL, etc.).
+3. View nearby available drivers.
+4. Get estimated arrival time (ETA).
+5. Get estimated ride price.
+6. Track the driver in real time.
+7. Cancel an ongoing request or ride.
+8. Make payments.
+9. View previous trips.
+10. Rate drivers.
+
+## Driver
+
+1. Register and manage driver profile.
+2. Go online/offline.
+3. Share real-time GPS location.
+4. Receive nearby ride requests.
+5. Accept or reject ride requests.
+6. Navigate to passenger pickup location.
+7. Start and complete trips.
+8. View earnings and payment history.
+
+## System
+
+1. Efficient driver-passenger matching based on geographical proximity.
+2. Calculate optimal routes and ETAs.
+3. Handle dynamic/surge pricing.
+4. Support millions of users and drivers.
+5. Handle location updates continuously.
+6. Prevent multiple drivers from accepting the same ride.
+7. Maintain trip and payment consistency.
+
+---
+
+# 3. Non-Functional Requirements (NFR)
+
+| Requirement | Explanation |
+|---|---|
+| High Availability | Ride requests and driver tracking should remain available. |
+| Scalability | Handle millions of passengers and drivers. |
+| Low Latency | Find nearby drivers and match rides quickly. |
+| Fault Tolerance | System should survive individual service/node failures. |
+| Reliability | A confirmed trip should not be lost. |
+| Consistency | Strong consistency for payments and trip assignment. |
+| Eventual Consistency | Small delays in driver location updates are acceptable. |
+| Durability | Completed trips and payment records must be preserved. |
+
+### CAP Theorem
+
+CAP stands for:
+
+- C – Consistency
+- A – Availability
+- P – Partition Tolerance
+
+During a network partition, a distributed system must trade off strong consistency and availability.
+
+For Uber-like systems:
+
+**AP-oriented operations:**
+- Driver location updates.
+- Nearby driver discovery.
+- Driver availability snapshots.
+- Location tracking.
+
+These operations can tolerate slightly stale information.
+
+**CP-oriented operations:**
+- Payment processing.
+- Ride assignment.
+- Trip state transitions.
+- Financial transactions.
+
+These operations require stronger consistency.
+
+Important: CAP is not a rule that an entire application must be AP or CP. Different services can make different trade-offs.
+
+---
+
+# 4. End-to-End Architecture
+
+## Architecture Diagram
+
+```text
+                   PASSENGER APP
+                         |
+                         |
+                    API GATEWAY
+                         |
+                   LOAD BALANCER
+                         |
+        +----------------+----------------+
+        |                |                |
+        v                v                v
+   User Service     Demand Service   Payment Service
+        |                |                |
+        |                v                |
+        |          Route Optimizer         |
+        |                |                |
+        |                v                |
+        |         Matching Service         |
+        |                |                |
+        |          Supply Service          |
+        |                |                |
+        |                v                |
+        |          Driver Service          |
+        |                |                |
+        +----------------+----------------+
+                         |
+                    MESSAGE BUS
+                       Kafka
+                         |
+          +--------------+---------------+
+          |              |               |
+          v              v               v
+     Notification   Trip Tracking    Analytics
+       Service         Service        Service
+          |              |
+          |              v
+          |         Redis / Cache
+          |              |
+          |         Driver Locations
+          |
+          v
+     SMS / Email
+
+                         |
+                  STORAGE LAYER
+                         |
+        +----------------+----------------+
+        |                |                |
+        v                v                v
+    PostgreSQL        Redis           Cassandra
+    User Data       Live Location     Trip Events
+    Payments        Active Trips
+    Trip History    Driver Status
+
+                         |
+                         v
+                  Historical Storage
+                    S3 / Data Lake
+```
+
+## Main Components
+
+### 1. Client Layer
+
+Two major clients:
+
+**Passenger Application**
+- React Native / iOS / Android.
+- Requests rides.
+- Displays nearby drivers.
+- Tracks driver location.
+- Makes payments.
+
+**Driver Application**
+- Sends GPS location updates.
+- Receives ride requests.
+- Accepts or rejects rides.
+- Updates trip status.
+- Displays navigation.
+
+Both clients communicate with backend services through APIs and persistent real-time connections.
+
+### 2. API Gateway
+
+Entry point for incoming client requests.
+
+Responsibilities:
+
+- Request routing to appropriate microservices.
+- Authentication and authorization.
+- Rate limiting.
+- SSL/TLS termination.
+- Request validation.
+- API versioning.
+- DDoS protection.
+
+Example:
+
+```text
+POST /api/rides/estimate
+       |
+       v
+  API Gateway
+       |
+       v
+  Demand Service
+```
+
+### 3. Load Balancer
+
+Distributes incoming traffic across multiple backend instances.
+
+Example:
+
+```text
+                Load Balancer
+                      |
+          +-----------+-----------+
+          |           |           |
+          v           v           v
+       Server 1    Server 2    Server 3
+```
+
+Benefits:
+- Prevents one server from receiving all traffic.
+- Improves availability.
+- Supports horizontal scaling.
+- Performs health checks.
+- Redirects traffic away from unhealthy instances.
+
+Examples:
+- NGINX
+- AWS Application Load Balancer
+- AWS Network Load Balancer
+
+---
+
+# 5. Microservices Architecture
+
+A microservice is an independently deployable service responsible for a specific business capability.
+
+## 5.1 User Management Service
+
+Handles passenger information.
+
+Responsibilities:
+- User registration.
+- Login and authentication.
+- Profile management.
+- User preferences.
+- Saved payment methods.
+
+Database: PostgreSQL.
+
+Why SQL?
+- Structured data.
+- Relationships.
+- Transaction support.
+- Strong consistency for important account operations.
+
+## 5.2 Driver Management Service
+
+Handles driver-related information.
+
+Responsibilities:
+- Driver registration.
+- Driver verification.
+- Driver profile.
+- Vehicle details.
+- Driver availability.
+- Online/offline status.
+
+Database: PostgreSQL for driver profiles and verification.
+
+Redis can maintain frequently changing driver availability and location data.
+
+## 5.3 Demand Service
+
+Demand Service handles passenger ride requests.
+
+When a passenger requests a ride:
+
+1. Receives source and destination.
+2. Identifies requested vehicle category.
+3. Requests fare estimation.
+4. Requests nearby driver discovery.
+5. Sends the request to Matching Service.
+
+Example:
+
+```http
+POST /api/rides/estimate
+
+{
+  "customerId": "U101",
+  "source": {
+    "lat": 28.6139,
+    "lng": 77.2090
+  },
+  "destination": {
+    "lat": 28.5355,
+    "lng": 77.3910
+  },
+  "cabType": "UberGo"
+}
+```
+
+Response:
+
+```json
+{
+  "estimatedFare": 250,
+  "eta": 5,
+  "nearbyDrivers": 8
+}
+```
+
+## 5.4 Supply Service
+
+Supply Service handles the available driver pool.
+
+Responsibilities:
+- Maintain available drivers.
+- Receive driver location updates.
+- Maintain online/offline status.
+- Provide nearby drivers to Matching Service.
+- Remove unavailable drivers from the matching pool.
+
+Example:
+
+```text
+Driver goes online
+       |
+       v
+Supply Service
+       |
+       v
+Update driver location
+       |
+       v
+Redis / Geospatial Index
+       |
+       v
+Available Driver Pool
+```
+
+## 5.5 Matching Service
+
+One of the most important services.
+
+Its job is to find the most suitable driver for a passenger.
+
+Matching considers:
+
+- Driver proximity.
+- Driver availability.
+- Estimated arrival time.
+- Vehicle category.
+- Driver acceptance rate.
+- Traffic conditions.
+- Driver-passenger compatibility.
+
+### Matching Workflow
+
+```text
+Passenger requests ride
+          |
+          v
+    Demand Service
+          |
+          v
+   Matching Service
+          |
+          v
+  Find nearby drivers
+          |
+          v
+  Filter available drivers
+          |
+          v
+ Calculate ETA and ranking
+          |
+          v
+ Select suitable driver
+          |
+          v
+ Send ride request
+          |
+          v
+ Driver accepts / rejects
+          |
+          v
+ Notify passenger
+```
+
+### Important: Driver Assignment
+
+Two passengers might attempt to get the same driver simultaneously.
+
+Therefore, driver assignment must be atomic.
+
+Example:
+
+```sql
+UPDATE drivers
+SET status = 'BUSY'
+WHERE driver_id = 'D101'
+AND status = 'AVAILABLE';
+```
+
+Check the number of affected rows.
+
+- 1 row updated: Assignment succeeded.
+- 0 rows updated: Driver was already assigned or unavailable.
+
+Use database transactions, conditional writes, or distributed coordination depending on the architecture.
+
+A ride should not be assigned to two passengers.
+
+---
+
+# 6. APIs and Event-Driven Communication
+
+## Passenger APIs
+
+### 1. EstimateRide
+
+```http
+POST /api/rides/estimate
+```
+
+Request:
+
+```json
+{
+  "customerId": "U101",
+  "source": "Delhi",
+  "destination": "Noida",
+  "cabType": "UberGo"
+}
+```
+
+Response:
+
+```json
+{
+  "estimatedETA": 5,
+  "estimatedPrice": 250,
+  "nearbyDrivers": 8
+}
+```
+
+### 2. RequestRide
+
+```http
+POST /api/rides/request
+```
+
+Request:
+
+```json
+{
+  "customerId": "U101",
+  "source": "Delhi",
+  "destination": "Noida",
+  "cabType": "UberGo",
+  "paymentMode": "UPI"
+}
+```
+
+Response:
+
+```json
+{
+  "rideId": "R101",
+  "status": "SEARCHING"
+}
+```
+
+### 3. CancelRide
+
+```http
+POST /api/rides/R101/cancel
+```
+
+### 4. TrackRide
+
+```http
+GET /api/rides/R101/location
+```
+
+### 5. RideHistory
+
+```http
+GET /api/users/U101/rides
+```
+
+## Driver APIs
+
+### 1. UpdateLocation
+
+```http
+POST /api/drivers/location
+```
+
+Request:
+
+```json
+{
+  "driverId": "D101",
+  "latitude": 28.6139,
+  "longitude": 77.2090,
+  "timestamp": 1795000000
+}
+```
+
+### 2. RequestTrip
+
+```http
+POST /api/drivers/ride-request
+```
+
+### 3. AcceptRide
+
+```http
+POST /api/rides/R101/accept
+```
+
+### 4. RejectRide
+
+```http
+POST /api/rides/R101/reject
+```
+
+### 5. StartTrip
+
+```http
+POST /api/rides/R101/start
+```
+
+### 6. EndTrip
+
+```http
+POST /api/rides/R101/end
+```
+
+## Event-Driven Communication
+
+Instead of making every service wait for another service to finish, asynchronous events can be published through Kafka.
+
+Example:
+
+```text
+Matching Service
+       |
+       v
+   Kafka Topic
+    RideFound
+       |
+       +-----------> Notification Service
+       |
+       +-----------> Trip Service
+       |
+       +-----------> Analytics Service
+```
+
+Important events:
+
+- RideRequested
+- DriverFound
+- RideAccepted
+- RideRejected
+- DriverArrived
+- TripStarted
+- TripCompleted
+- PaymentProcessed
+
+Kafka provides durable event storage, partitioning, replay, and asynchronous processing.
+
+---
+
+# 7. Trip State Machine
+
+A ride follows a predefined lifecycle.
+
+```text
+                 INITIATED
+                     |
+                     v
+                SEARCHING
+                     |
+             Driver Found
+                     |
+                     v
+                 ACCEPTED
+                     |
+                     v
+              DRIVER ARRIVING
+                     |
+                     v
+               DRIVER ARRIVED
+                     |
+                     v
+                PICKUP WAIT
+                     |
+                     v
+                IN PROGRESS
+                     |
+                     v
+                  ENDED
+                     |
+                     v
+             PAYMENT PROCESSING
+                     |
+                     v
+                 COMPLETED
+```
+
+### Alternative States
+
+```text
+SEARCHING -------> CANCELLED
+ACCEPTED --------> CANCELLED
+DRIVER ARRIVING -> CANCELLED
+SEARCHING -------> NO DRIVER FOUND
+ACCEPTED --------> DRIVER REJECTED
+```
+
+### Explanation
+
+| State | Meaning |
+|---|---|
+| Initiated | Passenger creates ride request. |
+| Searching | System searches for available drivers. |
+| Accepted | A driver accepts the request. |
+| Driver Arriving | Driver navigates to pickup. |
+| Driver Arrived | Driver reaches pickup location. |
+| Pickup Wait | Passenger is waiting for pickup. |
+| In Progress | Trip has started. |
+| Ended | Driver completes the trip. |
+| Completed | Payment and trip finalization are complete. |
+| Cancelled | Passenger or driver cancels the ride. |
+| No Driver Found | No suitable driver accepts the request. |
+
+Important:
+- Use a state machine to prevent invalid transitions.
+- Use optimistic locking or conditional updates.
+- Store state transitions durably.
+- Use idempotency keys to prevent duplicate operations.
+
+For example, a completed trip must not be charged twice if the EndTrip API is retried.
+
+---
+
+# 8. Database Design – Polyglot Persistence
+
+Polyglot persistence means using different databases for different workloads rather than forcing everything into one database.
+
+## 8.1 User Database – PostgreSQL
+
+Stores structured and relational information.
+
+Tables:
+
+### Users
+
+| user_id | name | email |
+|---|---|---|
+| U101 | Kartik | kartik@example.com |
+
+### Drivers
+
+| driver_id | name | vehicle_id | status |
+|---|---|---|---|
+| D101 | Driver A | V101 | AVAILABLE |
+
+### Payments
+
+| payment_id | ride_id | amount | status |
+|---|---|---|---|
+| P101 | R101 | 250 | SUCCESS |
+
+Why PostgreSQL?
+
+- ACID transactions.
+- Strong consistency.
+- Foreign key relationships.
+- Structured data.
+- Reliable payment and account operations.
+
+## 8.2 Driver Location – Redis
+
+Driver locations change frequently.
+
+Example:
+
+```text
+D101 -> (28.6139, 77.2090)
+D102 -> (28.6200, 77.2100)
+D103 -> (28.6300, 77.2200)
+```
+
+Redis is an in-memory database.
+
+Why Redis?
+
+- Very low read/write latency.
+- Supports geospatial indexing.
+- Supports expiration (TTL).
+- Supports atomic operations.
+- Suitable for frequently changing data.
+
+### Redis GEO Commands
+
+Add a driver:
+
+```redis
+GEOADD drivers:delhi 77.2090 28.6139 D101
+```
+
+Find drivers within 5 km:
+
+```redis
+GEOSEARCH drivers:delhi
+FROMMEMBER D101
+BYRADIUS 5 km
+WITHDIST
+ASC
+```
+
+Redis stores longitude first, then latitude.
+
+Driver location updates overwrite the previous location in the live-location index.
+
+Historical location tracking, if required, should be stored separately.
+
+## 8.3 Live Trips – Redis + Durable Database
+
+Redis:
+
+- Active trip lookup.
+- Current trip status cache.
+- Frequently accessed driver/passenger information.
+- Live location.
+
+PostgreSQL or another durable database:
+
+- Authoritative trip record.
+- Assignment details.
+- Financial information.
+- Important trip state transitions.
+
+Redis is not the permanent source of truth for critical trip records.
+
+## 8.4 Trip Events – Cassandra
+
+Cassandra is suitable for high-throughput, append-heavy event storage.
+
+Example:
+
+```text
+RideRequested
+DriverAssigned
+DriverArrived
+TripStarted
+TripCompleted
+```
+
+Why Cassandra?
+
+- High write throughput.
+- Horizontal scalability.
+- Distributed architecture.
+- Write-optimized LSM-tree storage.
+- Tunable consistency.
+
+## 8.5 Historical Trips – PostgreSQL
+
+Historical trip data is read frequently for:
+
+- Passenger trip history.
+- Driver trip history.
+- Invoices.
+- Revenue reports.
+- Filtering trips by date.
+
+SQL is useful because of relational queries and indexing.
+
+## 8.6 Logging and Analytics – DynamoDB / Data Lake
+
+Stores semi-structured events and application logs.
+
+Examples:
+
+```json
+{
+  "event": "RIDE_COMPLETED",
+  "rideId": "R101",
+  "driverId": "D101",
+  "duration": 1800,
+  "fare": 250
+}
+```
+
+For large-scale analytics, events can also be stored in object storage such as Amazon S3 and processed using Spark or other analytical systems.
+
+### Database Summary
+
+| Data | Storage | Reason |
+|---|---|---|
+| Users | PostgreSQL | Relational and transactional |
+| Drivers | PostgreSQL | Structured profile data |
+| Driver Locations | Redis | Fast geospatial operations |
+| Driver Availability | Redis + DB | Fast lookup and durable state |
+| Active Trips | Redis + PostgreSQL | Fast access and durable records |
+| Trip Events | Cassandra / Kafka | High write throughput |
+| Historical Trips | PostgreSQL | Relational queries |
+| Payments | PostgreSQL | ACID transactions |
+| Logs / Analytics | Data Lake / DynamoDB | Large-scale event data |
+
+---
+
+# 9. Redis and Caching
+
+Caching stores frequently accessed data in a faster storage layer.
+
+Instead of repeatedly querying the primary database, the application retrieves frequently needed information from Redis.
+
+### Example
+
+Without caching:
+
+```text
+Passenger
+    |
+    v
+Matching Service
+    |
+    v
+PostgreSQL
+    |
+    v
+Fetch driver information
+```
+
+With caching:
+
+```text
+Passenger
+    |
+    v
+Matching Service
+    |
+    v
+   Redis
+    |
+    +---- Cache HIT ----> Return data
+    |
+    +---- Cache MISS ---> Database
+```
+
+### Cache Use Cases
+
+- Nearby driver locations.
+- Driver availability.
+- Active trip details.
+- Frequently accessed user information.
+- ETA and route information where appropriate.
+
+### Cache Expiration (TTL)
+
+Driver location data should have a short expiration time.
+
+For example:
+
+```text
+Driver sends location every 2 seconds.
+
+Redis TTL = 10 seconds.
+
+If the driver stops sending updates,
+the location eventually expires.
+```
+
+This prevents stale driver locations from being treated as active.
+
+---
+
+# 10. Real-Time Location Tracking
+
+This is one of the most important parts of Uber's architecture.
+
+Drivers continuously send their GPS coordinates to the backend.
+
+### Workflow
+
+```text
+Driver Mobile App
+        |
+        | GPS Coordinates
+        v
+Location Tracking Service
+        |
+        v
+    API Gateway
+        |
+        v
+   Location Service
+        |
+        v
+       Redis
+        |
+        v
+  Update Geospatial Index
+        |
+        v
+  Passenger Tracking App
+```
+
+### Communication Protocol
+
+HTTP polling is inefficient for continuous real-time updates.
+
+Possible alternatives:
+
+- WebSockets: Persistent, bidirectional communication.
+- gRPC streaming: Efficient service-to-service streaming.
+- MQTT: Lightweight messaging protocol.
+- HTTP: Suitable for simpler periodic location updates.
+
+The actual choice depends on the client and infrastructure.
+
+### Why Not Continuously Query the Database?
+
+Suppose 5 million drivers send location updates every 2 seconds.
+
+\[
+\frac{5,000,000}{2}=2,500,000
+\]
+
+That means 2.5 million location updates per second.
+
+A traditional relational database is not the ideal destination for every transient GPS update.
+
+Use Redis or a dedicated distributed location infrastructure for live coordinates, with asynchronous persistence when historical tracking is required.
+
+---
+
+# 11. Geospatial Indexing – Finding Nearby Drivers
+
+A normal database index is designed for searching values such as:
+
+```text
+user_id = U101
+```
+
+But Uber needs to search geographically:
+
+```text
+Find all available drivers within 5 km
+of latitude 28.6139 and longitude 77.2090.
+```
+
+This requires geospatial indexing.
+
+There are multiple approaches.
+
+## 11.1 Geohashing
+
+Geohash converts two-dimensional geographical coordinates into a one-dimensional string.
+
+Example:
+
+```text
+Latitude + Longitude
+        |
+        v
+     Geohash
+        |
+        v
+   Geographic Cell
+```
+
+Nearby geographical coordinates generally share common geohash prefixes.
+
+Example:
+
+```text
+Delhi location -> ttn...
+Nearby location -> ttn...
+```
+
+This makes geographical lookup easier using indexed keys.
+
+Important:
+Geohash cell boundaries can cause nearby points to fall into different cells.
+
+Therefore, search the target cell and relevant neighboring cells.
+
+## 11.2 Quadtrees
+
+A Quadtree is a spatial data structure that recursively divides a two-dimensional region into four smaller quadrants.
+
+Example:
+
+```text
++-----------------------+
+|           |           |
+|    NW     |    NE     |
+|           |           |
+|-----------+-----------|
+|           |           |
+|    SW     |    SE     |
+|           |           |
++-----------------------+
+```
+
+If a region contains too many drivers, divide it into smaller regions.
+
+If a region has very few drivers, it may not need further subdivision.
+
+Advantages:
+- Handles dense and sparse areas.
+- Reduces unnecessary geographical searches.
+- Supports adaptive spatial partitioning.
+
+## 11.3 Space-Filling Curves – Hilbert Curve
+
+A Hilbert Curve maps two-dimensional geographical coordinates into a one-dimensional value.
+
+The idea:
+
+```text
+2D Coordinates
+      |
+      v
+Hilbert Curve
+      |
+      v
+1D Index
+      |
+      v
+Database / Distributed Index
+```
+
+Why?
+
+A traditional geographical search works in two dimensions.
+
+Converting coordinates into one-dimensional keys makes it easier to:
+- Index geographical regions.
+- Partition spatial data.
+- Distribute geographical ranges.
+- Perform locality-aware queries.
+
+The Hilbert Curve tries to preserve spatial locality.
+
+Nearby geographical points tend to have nearby Hilbert values, although this is not guaranteed for every pair of points.
+
+### Why Use These Techniques?
+
+| Technique | Main Purpose |
+|---|---|
+| Geohash | Encode geographical coordinates into strings |
+| Quadtree | Dynamically subdivide geographical regions |
+| Hilbert Curve | Map 2D spatial data to 1D keys |
+| Redis GEO | Perform fast geospatial queries |
+| S2 / H3 | Hierarchical global geographical indexing |
+
+---
+
+# 12. Driver Matching and Route Optimization
+
+Finding nearby drivers is not the same as selecting the best driver.
+
+The matching system has two major stages.
+
+### Stage 1: Candidate Discovery
+
+Find drivers geographically close to the passenger.
+
+Example:
+
+```text
+Passenger Location
+       |
+       v
+Geospatial Search
+       |
+       v
+Nearby Drivers
+
+D101 -> 1 km
+D102 -> 2 km
+D103 -> 3 km
+D104 -> 4 km
+```
+
+### Stage 2: Driver Ranking
+
+Calculate a score based on:
+
+- ETA.
+- Distance.
+- Availability.
+- Vehicle category.
+- Driver acceptance probability.
+- Traffic conditions.
+
+Example:
+
+| Driver | Distance | ETA |
+|---|---:|---:|
+| D101 | 1 km | 5 min |
+| D102 | 2 km | 3 min |
+| D103 | 3 km | 8 min |
+
+D102 may be selected even though D101 is geographically closer.
+
+Why?
+
+Because the road route and traffic conditions make D102 faster.
+
+### Route Optimization
+
+A Maps / Routing Service calculates:
+
+- Road distance.
+- Traffic-aware travel time.
+- Pickup ETA.
+- Destination ETA.
+- Best available route.
+
+The shortest geographical distance is not always the fastest driving route.
+
+---
+
+# 13. Consistent Hashing
+
+Consistent hashing is used to distribute data or requests across multiple nodes.
+
+It is especially useful when the number of servers changes dynamically.
+
+### Normal Hashing Problem
+
+Suppose:
+
+```text
+Hash(key) % 3
+```
+
+There are three servers:
+
+```text
+Server 1
+Server 2
+Server 3
+```
+
+When a fourth server is added, the modulo changes.
+
+Many keys get assigned to different servers.
+
+This causes massive redistribution.
+
+### Consistent Hashing Solution
+
+Consistent hashing maps both servers and keys onto a circular hash ring.
+
+```text
+              Server A
+                 |
+         .---------------.
+       /                   \
+      /                     \
+ Server D                 Server B
+      \                     /
+       \                   /
+         '---------------'
+                 |
+              Server C
+```
+
+Each server is assigned a position on the ring.
+
+A key is hashed onto the same ring.
+
+The key is assigned to the first server encountered when moving clockwise.
+
+### Virtual Nodes
+
+A physical server can have multiple positions on the ring.
+
+These positions are called virtual nodes.
+
+Benefits:
+- Better load distribution.
+- Easier server addition/removal.
+- Reduced data redistribution.
+- Better handling of uneven node capacity.
+
+### Where Is It Useful in Uber?
+
+- Partitioning location data.
+- Distributing geographically keyed data.
+- Assigning ownership of spatial partitions.
+- Routing requests to responsible processing nodes.
+
+Important:
+
+Consistent hashing does NOT solve race conditions.
+
+Race conditions in ride assignment require atomic operations, locks, transactions, or conditional writes.
+
+---
+
+# 14. Gossip Protocol
+
+Gossip is a distributed communication protocol in which nodes periodically exchange information with other nodes.
+
+Example:
+
+```text
+Server A ---> Server B
+    |             |
+    v             v
+Server C <--- Server D
+```
+
+Suppose a node fails.
+
+Other nodes gradually learn about its failure through gossip messages.
+
+Uses:
+- Node membership information.
+- Failure detection.
+- Cluster state propagation.
+- Distributed coordination metadata.
+
+Benefits:
+- Decentralized communication.
+- No single central coordinator required.
+- Supports large distributed clusters.
+- Eventually spreads information across nodes.
+
+Important:
+
+Gossip provides eventually consistent cluster membership information. It is not a substitute for strong consistency in payment or ride assignment.
+
+---
+
+# 15. Fault Tolerance, Replication and Redundancy
+
+A distributed system must continue operating even when individual nodes fail.
+
+## Replication
+
+Replication means maintaining multiple copies of data.
+
+Example:
+
+```text
+             Primary Node
+                  |
+          Replication
+                  |
+          +-------+-------+
+          |               |
+          v               v
+       Replica 1       Replica 2
+```
+
+If the primary node fails, a replica may be promoted.
+
+Benefits:
+- Higher availability.
+- Better read scalability.
+- Improved durability.
+- Reduced single points of failure.
+
+## Redundancy
+
+Redundancy means having additional resources available to take over when something fails.
+
+Examples:
+- Multiple API servers.
+- Multiple database replicas.
+- Multiple Kafka brokers.
+- Multiple availability zones.
+- Multiple regional deployments.
+
+## Fault Tolerance Techniques
+
+1. Replication.
+2. Health checks.
+3. Automatic failover.
+4. Retry with exponential backoff.
+5. Circuit breakers.
+6. Timeouts.
+7. Dead-letter queues.
+8. Multi-AZ deployment.
+9. Backups and disaster recovery.
+
+### Important: Idempotency
+
+If a request is retried, it should not execute the same operation twice.
+
+Example:
+
+A passenger makes a payment.
+
+The payment service processes it, but the response gets lost.
+
+The client retries the request.
+
+Without idempotency, the passenger could be charged twice.
+
+Use an idempotency key:
+
+```text
+Idempotency-Key: payment-R101
+```
+
+The payment service checks whether the operation has already been processed.
+
+---
+
+# 16. Dynamic Pricing / Surge Pricing
+
+Uber uses demand and supply information to determine pricing.
+
+Example:
+
+```text
+High Demand + Low Supply
+          |
+          v
+    Surge Pricing
+          |
+          v
+    Higher Fare
+```
+
+### Example
+
+Normal conditions:
+
+```text
+Available Drivers = 100
+Ride Requests = 50
+
+Supply > Demand
+Normal Pricing
+```
+
+Surge conditions:
+
+```text
+Available Drivers = 20
+Ride Requests = 200
+
+Demand > Supply
+Higher Pricing
+```
+
+### Surge Pricing Factors
+
+- Number of ride requests.
+- Available drivers.
+- Geographic area.
+- Weather.
+- Traffic.
+- Events.
+- Time of day.
+
+### Architecture
+
+```text
+Ride Requests
+      |
+      v
+Demand Service
+      |
+      +----------+
+      |          |
+      v          v
+Supply Data   Demand Data
+      |          |
+      +----------+
+           |
+           v
+    Pricing Service
+           |
+           v
+   Calculate Surge
+           |
+           v
+   Estimated Fare
+```
+
+The pricing service can maintain demand/supply metrics for individual geographical zones.
+
+---
+
+# 17. Location-Based Partitioning
+
+Uber operates across different geographical regions.
+
+It makes sense to partition location-related data geographically.
+
+Example:
+
+```text
+             Global System
+                  |
+       +----------+----------+
+       |          |          |
+       v          v          v
+     Delhi     Mumbai     Bangalore
+       |          |          |
+       v          v          v
+    Cluster    Cluster    Cluster
+```
+
+Benefits:
+- Lower latency.
+- Regional traffic isolation.
+- Easier scaling.
+- Smaller search spaces.
+- Reduced cross-region communication.
+
+For example, a Delhi passenger should normally search for drivers in the Delhi geographical region rather than querying drivers worldwide.
+
+### Handling Regional Boundaries
+
+A driver near the boundary of two regions might be relevant to passengers in either region.
+
+Possible solutions:
+- Query neighboring partitions.
+- Replicate boundary location information.
+- Use hierarchical spatial indexes.
+- Route requests based on geographical proximity.
+
+---
+
+# 18. Scaling and Hot Partitions
+
+A hot partition occurs when too many requests or writes target the same partition.
+
+Example:
+
+A major cricket stadium event ends.
+
+Thousands of passengers request rides from the same location.
+
+The geographical partition becomes overloaded.
+
+### Solutions
+
+1. Split highly populated geographical regions.
+2. Use smaller spatial cells in dense areas.
+3. Distribute processing across multiple nodes.
+4. Use caching for frequently requested data.
+5. Apply load shedding during extreme traffic.
+6. Use Kafka to absorb traffic spikes.
+7. Add more partitions or virtual nodes where appropriate.
+
+Dense and sparse regions should not necessarily use identical partition sizes.
+
+Dense areas need smaller geographical cells to distribute traffic more evenly.
+
+Sparse areas can use larger cells to avoid unnecessary partition overhead.
+
+---
+
+# 19. Capacity Estimation
+
+The following numbers are illustrative assumptions for system-design calculations, not verified Uber production statistics.
+
+Assume:
+
+- 100 million daily active passengers.
+- 5 million active drivers.
+- 2 million persistent connections.
+- Each active driver sends one location update every 2 seconds.
+- Each location update contains approximately 30 bytes of raw payload.
+
+### Location Updates Per Second
+
+\[
+QPS = \frac{5,000,000}{2}
+\]
+
+\[
+QPS = 2,500,000
+\]
+
+Approximately 2.5 million location updates per second.
+
+### Raw Location Payload Throughput
+
+\[
+2,500,000 \times 30 = 75,000,000
+\]
+
+Approximately 75 MB/second of raw payload.
+
+This excludes protocol overhead, metadata, replication and indexing costs.
+
+### Daily Location Updates
+
+\[
+2,500,000 \times 86,400
+\]
+
+\[
+= 216 \text{ billion updates/day}
+\]
+
+This illustrates why location updates need a highly scalable, distributed ingestion and processing architecture.
+
+### Ride Throughput
+
+Assume 5 billion rides per year:
+
+\[
+\frac{5,000,000,000}{365 \times 24 \times 3600}
+\]
+
+\[
+\approx 158 \text{ rides/second}
+\]
+
+This is the average rate, not peak throughput.
+
+Actual capacity planning must account for regional traffic spikes and peak demand.
+
+---
+
+# 20. Complete Ride Request Flow
+
+Now combine all the components.
+
+## Step 1: Passenger Requests a Ride
+
+Passenger enters:
+
+```text
+Source: Delhi
+Destination: Noida
+Cab: UberGo
+```
+
+Request goes to:
+
+```text
+Passenger App
+      |
+      v
+ API Gateway
+      |
+      v
+ Demand Service
+```
+
+## Step 2: Estimate Fare and ETA
+
+Demand Service calls:
+
+- Pricing Service.
+- Maps Service.
+- Supply Service.
+
+The system calculates:
+
+- Estimated fare.
+- Estimated arrival time.
+- Nearby available drivers.
+
+## Step 3: Find Nearby Drivers
+
+Supply Service queries Redis or the geographical indexing infrastructure.
+
+```text
+Passenger Coordinates
+         |
+         v
+  Geospatial Search
+         |
+         v
+   Nearby Drivers
+```
+
+## Step 4: Driver Matching
+
+Matching Service ranks the candidate drivers.
+
+It selects a suitable driver and sends a ride request.
+
+## Step 5: Driver Accepts
+
+Driver receives a notification.
+
+If the driver accepts:
+
+```text
+Driver App
+    |
+    v
+Matching Service
+    |
+    v
+Atomic Assignment
+    |
+    v
+Trip Service
+    |
+    v
+Ride Accepted
+```
+
+If the driver rejects or times out, the system tries another eligible driver.
+
+## Step 6: Driver Pickup
+
+Driver navigates to the passenger.
+
+Location Tracking Service continuously receives GPS updates.
+
+Passenger sees the driver's live location.
+
+## Step 7: Trip Starts
+
+Driver picks up the passenger.
+
+Trip state changes:
+
+```text
+DRIVER ARRIVED
+       |
+       v
+   IN PROGRESS
+```
+
+## Step 8: Trip Ends
+
+Driver drops the passenger.
+
+Trip Service:
+- Calculates final fare.
+- Updates trip status.
+- Initiates payment.
+- Generates trip receipt.
+- Sends notifications.
+
+## Step 9: Payment
+
+Payment Service processes the transaction through an external payment gateway.
+
+Payment details are persisted in the transactional database.
+
+## Step 10: Trip History
+
+Passenger and driver can retrieve the completed trip from historical trip storage.
+
+---
+
+# 21. Message Bus – Kafka
+
+Kafka is a distributed event streaming platform.
+
+It decouples microservices and allows asynchronous communication.
+
+### Without Kafka
+
+```text
+Demand Service
+      |
+      v
+Notification Service
+      |
+      v
+Analytics Service
+      |
+      v
+Trip Service
+```
+
+If Analytics Service is slow, it may affect synchronous processing.
+
+### With Kafka
+
+```text
+             Demand Service
+                    |
+                    v
+                Kafka Topic
+                    |
+          +---------+---------+
+          |         |         |
+          v         v         v
+    Notification  Analytics  Trip
+      Service     Service   Service
+```
+
+Advantages:
+- Asynchronous communication.
+- High throughput.
+- Durable event storage.
+- Consumer groups.
+- Replay capability.
+- Decoupling of services.
+
+Example topics:
+
+```text
+ride-requested
+driver-location-updated
+driver-accepted
+trip-started
+trip-completed
+payment-processed
+```
+
+Important:
+
+Kafka is useful for durable events and asynchronous workflows. It should not automatically become the synchronous path for every latency-sensitive location lookup.
+
+---
+
+# 22. Payment Service
+
+Payment is a critical component because financial operations require strong correctness guarantees.
+
+### Workflow
+
+```text
+Trip Completed
+      |
+      v
+Payment Service
+      |
+      v
+Payment Gateway
+      |
+      v
+Bank / UPI Provider
+      |
+      v
+Payment Result
+      |
+      v
+Update Payment DB
+      |
+      v
+Notify Passenger
+```
+
+Important concepts:
+
+- ACID transactions.
+- Idempotency.
+- Payment status tracking.
+- Retries.
+- Reconciliation.
+- Refund handling.
+- Webhook verification.
+
+Payment states:
+
+```text
+PENDING
+   |
+   v
+PROCESSING
+   |
+   +------> SUCCESS
+   |
+   +------> FAILED
+   |
+   +------> REFUNDED
+```
+
+Do not rely only on a successful HTTP response from a payment provider. Persist and reconcile payment outcomes.
+
+---
+
+# 23. Notification Service
+
+Sends updates to passengers and drivers.
+
+Examples:
+
+- Driver found.
+- Driver accepted.
+- Driver arriving.
+- Driver arrived.
+- Trip started.
+- Trip completed.
+- Payment successful.
+
+Communication methods:
+
+- Push notifications (FCM / APNs).
+- WebSockets.
+- SMS.
+- Email.
+
+External integrations can include providers such as Twilio or SendGrid.
+
+Use Kafka or another asynchronous queue to avoid blocking ride creation while waiting for external notification providers.
+
+---
+
+# 24. Important Design Patterns
+
+| Pattern | Where Used | Purpose |
+|---|---|---|
+| Microservices | Backend | Independent business services |
+| API Gateway | Entry point | Routing and security |
+| Load Balancing | Traffic distribution | Horizontal scaling |
+| Caching | Redis | Reduce database reads |
+| Pub/Sub | Kafka | Async communication |
+| Geospatial Indexing | Driver discovery | Find nearby drivers |
+| Consistent Hashing | Distributed partitioning | Reduce redistribution |
+| Replication | Databases | Availability and durability |
+| Circuit Breaker | Service calls | Prevent cascading failures |
+| Idempotency | Payments / rides | Prevent duplicate operations |
+| State Machine | Trip lifecycle | Valid state transitions |
+| CQRS | Read-heavy workloads | Separate read/write models |
+
+---
+
+# 25. What Can Fail? Failure Scenarios
+
+| Failure | Solution |
+|---|---|
+| Redis node fails | Replication and failover |
+| Kafka broker fails | Replicated partitions |
+| Driver stops sending location | TTL and stale-location detection |
+| Matching service fails | Retry and service replicas |
+| Payment gateway times out | Idempotent retry and reconciliation |
+| Driver rejects ride | Find another driver |
+| Duplicate ride request | Idempotency key |
+| Two passengers get same driver | Atomic conditional assignment |
+| Regional outage | Failover and disaster recovery |
+| Notification provider fails | Retry and alternate provider |
+
+---
+
+# 26. Important Interview Discussion Points
+
+### 1. Why Redis instead of PostgreSQL for driver locations?
+
+Driver coordinates change frequently.
+
+Redis provides low-latency in-memory access and geospatial commands.
+
+PostgreSQL remains useful for durable driver profiles and important business records.
+
+### 2. Why Cassandra for trip events?
+
+Cassandra supports high write throughput and horizontal scaling.
+
+It is suitable for append-heavy event workloads.
+
+### 3. Why not store everything in Redis?
+
+Redis is primarily an in-memory data store.
+
+Keeping every historical ride and financial record in Redis would be expensive and would not replace the need for durable transactional storage.
+
+### 4. Why use Kafka?
+
+To decouple services, buffer traffic spikes, persist events and allow asynchronous processing.
+
+### 5. Why use geospatial indexing?
+
+Because finding nearby drivers requires geographical range queries rather than simple exact-value lookups.
+
+### 6. Why use consistent hashing?
+
+To distribute keys across nodes while minimizing redistribution when nodes are added or removed.
+
+### 7. How do we prevent two passengers from booking the same driver?
+
+Use atomic assignment through conditional updates, transactions or distributed coordination.
+
+### 8. How do we handle millions of location updates?
+
+Use geographically partitioned location services, in-memory geospatial indexes, distributed ingestion and asynchronous processing.
+
+### 9. How do we handle surge pricing?
+
+Compare demand and available supply within geographical zones and calculate dynamic pricing.
+
+### 10. Why use multiple databases?
+
+Different workloads have different requirements:
+
+- SQL for transactions.
+- Redis for low-latency state.
+- Cassandra for high-volume writes.
+- Object storage/data lakes for large historical datasets.
+
+---
+
+# 27. Whiteboard Image Reference
+
+The following image is the Uber system design reference used for these notes:
+
+![Uber System Design](https://assets.leetcode.com/static_assets/others/Uber.png)
+
+### Explanation of the Image
+
+The diagram contains several important architectural concepts.
+
+**1. Top Workflow**
+
+The top row illustrates the complete ride lifecycle:
+
+1. Passenger requests a ride.
+2. Demand Service finds available drivers.
+3. Supply Service identifies driver availability.
+4. Driver accepts the ride.
+5. Trip information is created.
+6. Driver picks up and drops off the passenger.
+
+**2. Left Side – Backend APIs**
+
+Shows the main customer and driver APIs:
+
+- EstimateRide.
+- RequestRide.
+- RideFound.
+- RequestTrip.
+- AcceptRide.
+- DenyRide.
+- StartTrip.
+- EndTrip.
+
+These represent the communication between passenger/driver applications and backend services.
+
+**3. Middle – Trip State Machine**
+
+Shows how a ride moves through different states:
+
+- Initiated.
+- Driver Demanded.
+- Driver Found / Accepting.
+- Accepted.
+- Customer Pickup Waiting.
+- Started / On Road.
+- Ended.
+- Suspended.
+
+The key idea is that the ride lifecycle is explicitly managed rather than being a collection of unrelated API calls.
+
+**4. Right Side – Microservices Architecture**
+
+Shows the major backend components:
+
+- User Management Service.
+- Driver Management Service.
+- Location Tracking Service.
+- Maps Service.
+- Rating Service.
+- Predictive Surge Pricing.
+- Fraud Detection.
+- Demand Service.
+- Supply Service.
+- Matching Service.
+- Trip Tracking Service.
+
+The Message Bus connects services and enables event-driven communication.
+
+**5. Rightmost – Cache and Databases**
+
+Shows separate storage areas for:
+
+- Users DB.
+- Drivers DB.
+- Live Trips.
+- Historical Trips.
+- Logging and Analytics.
+
+The important concept is polyglot persistence: choosing storage based on the type of workload.
+
+**6. Bottom – Spatial Indexing**
+
+Shows the Space-Filling Curve / Hilbert Curve concept.
+
+It maps two-dimensional geographical coordinates into one-dimensional index values.
+
+Dense areas contain more locations and may require finer-grained spatial partitioning, while sparse areas can use larger partitions.
+
+**7. Bottom Right – Distributed System Concepts**
+
+Shows:
+
+- Consistent Hashing.
+- Gossip Protocol.
+- Easy node addition/removal.
+- Virtual Nodes.
+- Distributed state sharing.
+
+These techniques help build and operate a distributed geographical infrastructure.
+
+---
+
+# 28. Final Architecture Summary
+
+Remember the following flow:
+
+```text
+PASSENGER REQUEST
+       |
+       v
+   API GATEWAY
+       |
+       v
+  DEMAND SERVICE
+       |
+       +-------> PRICING SERVICE
+       |
+       +-------> MAPS SERVICE
+       |
+       v
+  MATCHING SERVICE
+       |
+       v
+   SUPPLY SERVICE
+       |
+       v
+   REDIS GEO
+       |
+       v
+  NEARBY DRIVERS
+       |
+       v
+ DRIVER ACCEPTANCE
+       |
+       v
+    TRIP SERVICE
+       |
+       v
+ LOCATION TRACKING
+       |
+       v
+    TRIP ENDED
+       |
+       v
+  PAYMENT SERVICE
+       |
+       v
+   NOTIFICATION
+       |
+       v
+  TRIP HISTORY
+```
+
+## Concepts to Remember
+
+| Concept | Remember |
+|---|---|
+| Microservices | Separate services by business responsibility |
+| API Gateway | Entry point for requests |
+| Load Balancer | Distributes incoming traffic |
+| Redis | Fast in-memory cache and geospatial index |
+| PostgreSQL | Transactional and relational data |
+| Cassandra | High-throughput distributed writes |
+| Kafka | Durable asynchronous event streaming |
+| Geohash | Geographic coordinates to indexed strings |
+| Quadtree | Recursively divides geographical regions |
+| Hilbert Curve | Maps 2D coordinates to 1D keys |
+| Consistent Hashing | Distributes keys across nodes |
+| Gossip | Shares cluster membership information |
+| Replication | Maintains multiple data copies |
+| State Machine | Controls trip lifecycle |
+| Idempotency | Prevents duplicate operations |
+| Surge Pricing | Balances demand and supply |
+
+**Core takeaway:** Uber is not just a CRUD application. Its most challenging engineering problems are real-time geospatial search, high-volume location ingestion, low-latency driver matching, distributed coordination, and reliable trip/payment processing.
