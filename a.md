@@ -6,6 +6,7 @@
   - Throughput in System Design (RPS, QPS, TPS, Bottlenecks)
   - Scaling in System Design (Vertical vs Horizontal Scaling, Scale Out)
   - Load Balancer, Caching (Redis / Memcached), and Backend Architecture
+  - CAP Theorem & PACELC Theorem Deep Dive (Consistency vs Availability vs Partition Tolerance)
 
 - ### <a href="#topic-2">2. Database Engineering: SQL vs NoSQL, Indexing, Partitioning and Sharding</a>
   - SQL vs NoSQL: Core Differences, Advantages, and Decision Criteria
@@ -1509,6 +1510,182 @@ Horizontal scaling, also called scale out, means adding multiple servers and dis
 
 In real-world distributed systems, companies often combine both approaches. They use vertical scaling to improve individual server capacity and horizontal scaling to distribute workloads, improve availability and support increasing traffic.
 
+---
+
+# 9. CAP Theorem & PACELC Theorem Deep Dive
+
+In distributed systems, data is replicated and distributed across multiple physical machines or nodes connected over a network. Because networks are inherently imperfect (subject to packet loss, fiber cuts, router failures, and network congestion), distributed data stores must navigate fundamental theoretical trade-offs.
+
+## 9.1 What is the CAP Theorem?
+
+Formulated by Eric Brewer in 2000 and formally proven by Seth Gilbert and Nancy Lynch in 2002, the **CAP Theorem** states that in any asynchronous network subject to partitions, a distributed data store can simultaneously guarantee at most **two out of the following three properties**:
+
+```text
+                     Consistency (C)
+                          /   \
+                         /     \
+                        /       \
+                       /  RDBMS  \
+                      /  (Single) \
+                     /             \
+                    /  CA (No net)  \
+                   /                 \
+  Availability (A) ------------------- Partition Tolerance (P)
+        (AP: DynamoDB,                      (CP: HBase,
+         Cassandra, CouchDB)                 MongoDB, ZooKeeper)
+```
+
+### The Three Properties Explained:
+
+| Property | SDE-3 Precise Definition | Common Misconception |
+|---|---|---|
+| **Consistency (C)** | **Linearizability / Single-copy consistency**. Every read request receives the most recent write or an error. All nodes see the exact same data at the exact same physical instant. | Do not confuse with the "C" in ACID! In ACID, Consistency means database invariants (foreign keys, check constraints) are preserved. In CAP, Consistency means atomic, linearizable data state across all replicas. |
+| **Availability (A)** | **Every non-failing node returns a non-error response for every received request**, although without guarantee that it contains the most recent write. | It does NOT mean uptime (e.g. 99.999% SLA). In CAP, if a node returns an HTTP 500 error or a "system locked" message, the system is technically **Unavailable** under the CAP theorem definition. |
+| **Partition Tolerance (P)** | **The system continues to function despite an arbitrary number of messages being dropped, delayed, or partitioned by the network between nodes.** | Network partitions are not optional. You cannot choose "CA" in any real-world distributed system because physical networks will eventually partition. |
+
+---
+
+## 9.2 The Core Reality: Why "CA" Does Not Exist in Distributed Systems
+
+In an actual distributed architecture running across multiple servers, data centers, or cloud regions, **network partitions (P) are an inescapable physical reality**. Network switches reboot, cross-datacenter fiber cables can be cut, and cloud hypervisors pause.
+
+Therefore, the real choice in distributed systems is **not "pick 2 of 3"**.
+
+> **The True Law of CAP:**  
+> When a network partition occurs, a distributed system must choose between **Consistency (CP)** or **Availability (AP)**.
+
+```text
+                  Network Partition Event
+                            |
+           +----------------+----------------+
+           |                                 |
+           v                                 v
+      Choose CP                          Choose AP
+ (Cancel / reject write             (Accept write on partition A;
+  to preserve exact consistency)     Accept stale read on partition B;
+                                     Eventual consistency later)
+```
+
+### The Scenario:
+Imagine two database nodes: **Node 1 (Region East)** and **Node 2 (Region West)**. Both have a balance of `$100`.
+A network cut severs communication between Node 1 and Node 2.
+
+A client connects to **Node 1** and executes:
+```sql
+UPDATE balance SET amount = 150 WHERE user_id = 'U101';
+```
+
+Node 1 cannot communicate the update to Node 2 across the partitioned network. Now a second client attempts to read `user_id = 'U101'` from **Node 2**:
+
+1. **If you choose CP (Consistency + Partition Tolerance):**
+   - Node 2 knows it cannot confirm whether a newer write occurred on Node 1.
+   - Node 2 **refuses the request or returns an error / timeout**.
+   - Result: Strong consistency is preserved (no stale reads), but **Availability is sacrificed**.
+
+2. **If you choose AP (Availability + Partition Tolerance):**
+   - Node 2 immediately responds with the older value: `$100`.
+   - Node 2 remains available and fast for the user.
+   - Result: Availability is preserved, but **Consistency is sacrificed** (the client observed stale/inconsistent data). Replicas must be reconciled later (e.g., via Vector Clocks, Last-Write-Wins, or CRDTs) once the partition heals.
+
+---
+
+## 9.3 System Classifications with Real-World Databases
+
+```text
++---------------------------------------------------------------------------------+
+|                               CAP CLASSIFICATIONS                               |
++------------------------------------+--------------------------------------------+
+|        CP Systems (Consistency)    |         AP Systems (Availability)          |
++------------------------------------+--------------------------------------------+
+| • Google Cloud Spanner (TrueTime)  | • Apache Cassandra (tunable, default AP)   |
+| • Apache ZooKeeper / etcd / Consul | • Amazon DynamoDB (eventual consistency)   |
+| • MongoDB (majority write concern) | • CouchDB                                  |
+| • Apache HBase                     | • Redis Sentinel / Cluster (AP on split)   |
+| • Redis (single master / Raft)     | • DNS (Domain Name System)                 |
++------------------------------------+--------------------------------------------+
+```
+
+### When to choose CP:
+- **Banking, Financial Ledgers, and Payments**: Account balances cannot double-spend or report inconsistent funds.
+- **Seat Reservations & Inventory**: In flight booking, train reservation, or hotel systems where double-booking the same physical resource causes real-world disruption.
+- **Distributed Locks & Leader Election**: Services like Apache ZooKeeper, `etcd`, or Consul require strict consensus (Paxos/Raft) to determine node leadership and configuration coordination.
+
+### When to choose AP:
+- **Social Media Feeds & Timelines**: If a user doesn't immediately see a tweet or comment posted 2 seconds ago from another continent, the platform still functions cleanly.
+- **Shopping Cart (Amazon model)**: A user should never be prevented from adding an item to their cart due to network partitions between data centers.
+- **Metrics, Logging & Telemetry**: If monitoring pings arrive out of order or are temporarily delayed, system health reporting continues.
+
+---
+
+## 9.4 Beyond CAP: The PACELC Theorem
+
+In 2012, computer scientist Daniel Abadi identified a major limitation of the CAP theorem: **CAP only describes system behavior during a rare network partition (P)**. 
+
+What happens during the 99.99% of normal operational time when the network is working perfectly?
+
+The **PACELC Theorem** extends CAP to cover normal operation:
+
+```text
+                  +-------------------------------+
+                  |        PACELC THEOREM         |
+                  +-------------------------------+
+                                 |
+         +-----------------------+-----------------------+
+         |                                               |
+If Partition (P)                                   Else (E)
+         |                                               |
+    Choose between:                                 Choose between:
+   A (Availability)                               L (Latency)
+          OR                                             OR
+   C (Consistency)                                C (Consistency)
+```
+
+> **PACELC Formulation:**  
+> **If there is a Partition (P)**, trade off **Availability (A)** vs. **Consistency (C)**;  
+> **Else (E)**, trade off **Latency (L)** vs. **Consistency (C)**.
+
+### Why the "Else: Latency vs. Consistency" trade-off matters:
+Even when the network is completely healthy, replicating a write to 3 data centers across the globe takes physical time (speed of light in optical fiber $\approx 5\text{ ms per } 1000\text{ km}$).
+- If you require synchronous strong consistency (**PC/EC** like Google Spanner), every write must wait for cross-region consensus, increasing **Latency (L)**.
+- If you prioritize ultra-low latency (**PA/EL** like DynamoDB or Cassandra), the primary node returns a success acknowledgment immediately to the client and replicates asynchronously in the background, sacrificing immediate **Consistency (C)**.
+
+### PACELC Classification Matrix:
+
+| System | Classification | Behavior Under Partition | Behavior Under Normal Operation |
+|---|---|---|---|
+| **Cassandra / DynamoDB** | **PA/EL** | High Availability over Consistency | Low Latency (asynchronous replication) |
+| **MongoDB** | **PC/EC** | Consistency over Availability | High Consistency (synchronous replica ack) |
+| **Google Cloud Spanner** | **PC/EC** | Strict Consistency via Paxos | Strong Consistency via TrueTime hardware atomic clocks |
+| **VoltDB / HStore** | **PC/EC** | Strict ACID Consistency | Consistency prioritized over latency |
+| **CouchDB** | **PA/EC** | High Availability | Consistency prioritized during normal sync |
+
+---
+
+## 9.5 Practical Interview Cheat-Sheet: Answering CAP & PACELC Questions
+
+```text
++---------------------------------------------------------------------------------------+
+| SDE-3 Interview Golden Rule:                                                          |
+| "A system is never purely CP or AP as a monolithic whole. Modern enterprise           |
+| architectures deliberately apply different CAP and PACELC trade-offs to different    |
+| sub-domains and microservices within the same platform."                             |
++---------------------------------------------------------------------------------------+
+```
+
+### High-Impact Interview Talking Points:
+1. **Never claim CA exists in a distributed system**: "Since physical networks cannot guarantee zero partitions, Partition Tolerance is non-negotiable. We are always choosing between CP and AP during network degradation."
+2. **Tunable Consistency (The Quorum Formula)**:
+   In distributed engines like Apache Cassandra:
+   $$\text{Nodes } N, \quad \text{Write Quorum } W, \quad \text{Read Quorum } R$$
+   - If $W + R > N$, you achieve strong consistency (overlapping read and write quorums guarantee at least one node has the latest write).
+   - If $W + R \le N$, you favor low latency and high availability at the cost of eventual consistency.
+3. **Partition Recovery & Anti-Entropy**:
+   When an AP system heals from a network partition, explain the conflict resolution strategies:
+   - **Last-Write-Wins (LWW)**: Uses wall-clock timestamps (vulnerable to NTP clock skew).
+   - **Vector Clocks / Version Vectors**: Tracks causality between concurrent updates across nodes.
+   - **Conflict-free Replicated Data Types (CRDTs)**: Mathematically proven data structures that deterministically converge without human or algorithmic conflict resolution.
+
+---
 
 <div id="topic-2"></div>
 
@@ -9134,6 +9311,8 @@ Important: CAP is not a rule that an entire application must be AP or CP. Differ
 
 # 4. End-to-End Architecture
 
+![Uber System Design](https://assets.leetcode.com/static_assets/others/Uber.png)
+
 ## Architecture Diagram
 
 ```text
@@ -9454,6 +9633,166 @@ Check the number of affected rows.
 Use database transactions, conditional writes, or distributed coordination depending on the architecture.
 
 A ride should not be assigned to two passengers.
+
+## 5.6 Route Finder & Optimizer
+
+As shown in the architecture, the **Demand Service** queries the **Route Finder & Optimizer** before dispatching to the Matching Service.
+
+### Responsibilities:
+- **Graph Routing Algorithms**: Uses graph search algorithms (e.g., Contraction Hierarchies, A*, or Dijkstra on pre-processed road networks) to calculate realistic turn-by-turn driving distance and duration instead of straight-line (Euclidean/Haversine) distance.
+- **Traffic-Aware ETA**: Continuously ingests live road speeds and historical traffic congestion patterns from the Maps Service to dynamically calibrate travel times.
+- **Trip Route Pre-computation**: Generates the initial route geometry (polyline waypoints) passed to both the driver navigation client and the trip tracking system.
+
+### Request / Response Example:
+
+```http
+POST /api/routes/optimize
+```
+
+```json
+{
+  "pickup": { "lat": 28.6139, "lng": 77.2090 },
+  "dropoff": { "lat": 28.5355, "lng": 77.3910 },
+  "departureTime": "2026-11-21T18:30:00Z"
+}
+```
+
+```json
+{
+  "distanceKm": 14.8,
+  "estimatedDurationMinutes": 28,
+  "polyline": "encoded_polyline_points_string...",
+  "trafficLevel": "HEAVY_CONGESTION"
+}
+```
+
+## 5.7 Maps Service (Location & ETAs)
+
+The Maps Service serves as the foundational geospatial utility for all client applications and backend microservices.
+
+### Responsibilities:
+- **Geocoding & Reverse Geocoding**: Converts human-readable street addresses to `(lat, lng)` coordinates and vice versa.
+- **Map Tile Serving**: Delivers vector map tiles to the rider and driver mobile applications with low latency via CDN edge caching.
+- **Real-Time ETA Computation**: Provides matrix ETA calculations (distance-matrix API) for multiple nearby candidate drivers simultaneously during the matching phase.
+- **Event Streaming**: Broadcasts updated ETAs to active ride subscribers over the Message Bus whenever traffic conditions change significantly along the active trip trajectory.
+
+### Storage & Tech Stack:
+- Spatial databases (PostGIS, OpenStreetMap / proprietary map graphs).
+- Distributed routing engines with in-memory caching of segment traversal weights.
+
+## 5.8 Location Tracking Service
+
+The Location Tracking Service handles the massive, continuous ingestion of live GPS coordinates emitted by hundreds of thousands of active driver devices.
+
+### Workflow:
+
+```text
+Driver Phone (GPS)
+       |
+       | (WebSocket / gRPC every 3-4s)
+       v
+API Gateway / WebSocket Gateway
+       |
+       v
+Location Tracking Service
+       |
+       +------------------------------------+
+       |                                    |
+       v                                    v
+Redis Geospatial Index            Message Bus (Kafka)
+ (Current ephemeral snapshot)       Topic: driver-locations
+ (Low latency nearby queries)      (Durable stream for analytics,
+                                    surge, fraud, trip audit)
+```
+
+### Key Engineering Decisions:
+1. **Connection Protocol**: Uses persistent WebSockets or HTTP/2 gRPC streaming to avoid HTTP connection handshake overhead on every 3–4 second location ping.
+2. **Ephemeral vs. Durable Storage**:
+   - Updates **Redis GEO** (`GEOADD drivers:<cell_id>`) with TTL for sub-5ms proximity lookups by the matching engine.
+   - Pushes raw location records into the **Message Bus (Kafka)** for downsampling, map-matching (snapping GPS to road network), and long-term analytics in Cassandra/Data Lake.
+
+## 5.9 Rating Service
+
+Collects, aggregates, and manages ratings and reviews submitted after trip completion.
+
+### Responsibilities:
+- **Two-Way Reviews**: Rider rates driver (1 to 5 stars + optional tags/feedback), and driver rates rider.
+- **Rolling Aggregate Calculation**: Computes exponentially weighted rolling average ratings (e.g., average over the last 500 trips) rather than a simple lifetime average, allowing drivers to recover from past poor ratings.
+- **Matching Quality Feedback Loop**: Supplies ratings to the **Matching Service**—passengers with very low ratings or drivers below platform thresholds can be flagged, deprioritized, or routed to customer support.
+- **Decoupling**: Consumes `trip-completed` events asynchronously from Kafka, ensuring ratings submission does not block billing or trip closure.
+
+## 5.10 Predictive Surge Pricing
+
+Balances supply and demand dynamically across geographical zones to maintain platform reliability.
+
+### How Predictive Surge Pricing Works:
+
+```text
+Spatial Ingestion (H3 Hexagon Cells)
+  ├── Demand Signal: Ride search & request volume
+  └── Supply Signal: Available idle drivers
+              |
+              v
+    Predictive ML Engine
+(Historical patterns + Event calendar + Real-time velocity)
+              |
+              v
+     Calculate Surge Multiplier (e.g., 1.4x, 2.0x)
+              |
+              +----------------------------+
+              |                            |
+              v                            v
+      Passenger Pricing           Driver Heatmap Display
+   (Fare calculation)          (Incentivize relocation)
+```
+
+### Key Capabilities:
+- **Proactive vs. Reactive**: Instead of waiting for demand to overwhelm an area (which leads to unfulfilled requests and long wait times), the predictive model forecasts demand surges 15–30 minutes in advance using flight arrivals, concert/stadium event schedules, rain radar, and historical Friday night trends.
+- **Spatial Resolution**: Computes surge multipliers at fine-grained spatial cells (e.g., Uber H3 Resolution 7 or 8 hexagons, ~0.5–1.2 km radius) to avoid sudden price cliffs between adjacent neighborhoods.
+
+## 5.11 Fraud Detection
+
+A critical security layer protecting revenue, drivers, and riders from abuse.
+
+### Responsibilities & Rules:
+- **GPS Spoofing & Fake Trips**: Detects impossible travel velocities (e.g., a driver device jumping 10 km in 30 seconds or driving through water bodies/buildings without road network adherence).
+- **Collusion & Promo Abuse**: Identifies coordinated behavior where drivers and passengers book trips together to exploit driver incentive bonuses, referral credits, or stolen credit cards.
+- **Ghost Drivers**: Identifies automated bots pinging fake availability to manipulate surge pricing in a localized cell.
+- **Architecture**: Operates as a streaming consumer on Kafka (`driver-locations`, `trip-events`, `payment-events`) using stream processing frameworks (Apache Flink / Spark Streaming) to score transactions in near real-time and trigger trip suspensions or account locks.
+
+## 5.12 Payment Gateway (3rd Party)
+
+Integrates external financial systems while isolating the ride-hailing core from payment latency and provider outages.
+
+### Workflow & Reliability:
+
+```text
+Trip Completed Event
+       |
+       v
+Payment Service
+       |
+       v
+Idempotency Key Generation (hash of ride_id + attempt)
+       |
+       v
+Payment Gateway (Stripe / Adyen / Bank UPI / Apple Pay)
+       |
+       +-----------------------+
+       |                       |
+       v                       v
+Synchronous ACK            Asynchronous Webhook
+(Pending / Authorized)     (Payment Succeeded / Failed)
+                               |
+                               v
+                         Reconciliation &
+                         Driver Payouts
+```
+
+### Key Engineering Guarantees:
+- **Idempotency**: Prevents double-charging riders if network retries occur. Each charge carries a unique `idempotency_key = ride_id + trip_version`.
+- **Asynchronous Settlement**: Relies on secure webhook validation and background reconciliation jobs rather than blocking trip completion on bank clearing networks.
+- **Failover**: Supports multi-provider routing (e.g., if Stripe experiences elevated error rates, dynamically route transactions to Adyen or Braintree).
 
 ---
 
